@@ -83,12 +83,6 @@
             <ul class="player-list" id="red-operatives"></ul>
             <button class="link-btn btn-team" data-team="red" data-role="operative" id="red-join-operative">Войти в команду</button>
           </div>
-          <!-- Подвал карточки: кнопка пропуска хода (агенты) — управляется teams.view. -->
-          <div class="team-footer">
-            <button class="btn btn-warning btn-sm skip-btn hidden" id="red-skip-btn" data-team="red">⏭ Пропустить ход</button>
-            <div class="vote-dots vote-dots-skip" id="red-skip-dots"></div>
-            <div class="skip-loader hidden" id="red-skip-loader"><div class="skip-loader-bar" id="red-skip-loader-bar"></div></div>
-          </div>
           <!-- История подсказок прижата к низу карточки: вместо заголовка — черта
                во всю ширину карточки, под ней список подсказок, а в самом низу (под
                последним загаданным словом) — поле ввода подсказки капитаном. -->
@@ -101,6 +95,15 @@
             </div>
             <p class="clue-error" id="red-clue-error"></p>
           </div>
+          <!-- Подвал карточки в самом низу: кнопка пропуска хода (агенты) —
+               управляется teams.view. -->
+          <div class="team-footer">
+            <button class="skip-btn hidden" id="red-skip-btn" data-team="red">⏭ Пропустить ход</button>
+            <div class="vote-dots vote-dots-skip" id="red-skip-dots"></div>
+          </div>
+          <!-- Лоадер пропуска — прямой ребёнок карточки, чтобы прижаться к её нижней
+               рамке во всю ширину (позиционируется относительно .team-block). -->
+          <div class="skip-loader hidden" id="red-skip-loader"><div class="skip-loader-bar" id="red-skip-loader-bar"></div></div>
         </div>
       </aside>
 
@@ -125,12 +128,6 @@
             <ul class="player-list" id="blue-operatives"></ul>
             <button class="link-btn btn-team" data-team="blue" data-role="operative" id="blue-join-operative">Войти в команду</button>
           </div>
-          <!-- Подвал карточки: кнопка пропуска хода (агенты) — управляется teams.view. -->
-          <div class="team-footer">
-            <button class="btn btn-warning btn-sm skip-btn hidden" id="blue-skip-btn" data-team="blue">⏭ Пропустить ход</button>
-            <div class="vote-dots vote-dots-skip" id="blue-skip-dots"></div>
-            <div class="skip-loader hidden" id="blue-skip-loader"><div class="skip-loader-bar" id="blue-skip-loader-bar"></div></div>
-          </div>
           <!-- История подсказок прижата к низу карточки: вместо заголовка — черта
                во всю ширину карточки, под ней список подсказок, а в самом низу (под
                последним загаданным словом) — поле ввода подсказки капитаном. -->
@@ -143,6 +140,15 @@
             </div>
             <p class="clue-error" id="blue-clue-error"></p>
           </div>
+          <!-- Подвал карточки в самом низу: кнопка пропуска хода (агенты) —
+               управляется teams.view. -->
+          <div class="team-footer">
+            <button class="skip-btn hidden" id="blue-skip-btn" data-team="blue">⏭ Пропустить ход</button>
+            <div class="vote-dots vote-dots-skip" id="blue-skip-dots"></div>
+          </div>
+          <!-- Лоадер пропуска — прямой ребёнок карточки, чтобы прижаться к её нижней
+               рамке во всю ширину (позиционируется относительно .team-block). -->
+          <div class="skip-loader hidden" id="blue-skip-loader"><div class="skip-loader-bar" id="blue-skip-loader-bar"></div></div>
         </div>
       </aside>
     </div>

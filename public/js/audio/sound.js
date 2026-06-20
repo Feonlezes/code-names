@@ -50,6 +50,59 @@ function soundAlarm() { beep(1046, 0.18, 0.16, 'square'); setTimeout(() => beep(
 function soundTick() { beep(760, 0.07, 0.10, 'triangle'); }
 /** Звук уведомления (тосты). */
 export function soundNotify() { beep(660, 0.12, 0.14, 'sine'); setTimeout(() => beep(990, 0.18, 0.14, 'sine'), 120); }
+/**
+ * Звук новой подсказки лидера: восходящее трезвучие — заметный «сигнал хода»,
+ * чтобы команда услышала, что капитан отправил слово.
+ * @returns {void}
+ */
+export function soundClue() {
+  beep(523, 0.18, 0.42, 'sine');
+  setTimeout(() => beep(659, 0.18, 0.42, 'sine'), 160);
+  setTimeout(() => beep(784, 0.34, 0.42, 'sine'), 320);
+}
+/**
+ * Короткий щелчок: клик по карте-слову (голос) и по «Пропустить ход».
+ * @returns {void}
+ */
+export function soundClick() { beep(420, 0.05, 0.30, 'square'); }
+
+// Звук клика по карте — из аудиофайла (см. public/assets/sounds/). Один
+// предзагруженный элемент; на каждый клик клонируем его, чтобы быстрые клики
+// проигрывались внахлёст, а не обрывали друг друга.
+const CARD_CLICK_SRC = '/assets/sounds/card-click-sound.mp3';
+let cardClickAudio = null;
+try {
+  cardClickAudio = new Audio(CARD_CLICK_SRC);
+  cardClickAudio.preload = 'auto';
+  cardClickAudio.volume = 0.7;
+} catch (_) {}
+
+/**
+ * Проигрывает звук клика по карте из файла; при сбое (файл не загрузился или
+ * воспроизведение отклонено) откатывается на синтезированный щелчок soundClick.
+ * @returns {void}
+ */
+export function soundCardClick() {
+  if (cardClickAudio) {
+    try {
+      const a = cardClickAudio.cloneNode();
+      a.volume = cardClickAudio.volume;
+      const p = a.play();
+      if (p && p.catch) p.catch(() => soundClick());
+      return;
+    } catch (_) { /* падаем в фолбэк ниже */ }
+  }
+  soundClick();
+}
+/**
+ * Звук выбора карты командой: карта открывается по единогласному голосованию —
+ * короткое восходящее «дзынь».
+ * @returns {void}
+ */
+export function soundReveal() {
+  beep(587, 0.10, 0.30, 'triangle');
+  setTimeout(() => beep(880, 0.16, 0.28, 'triangle'), 90);
+}
 
 /**
  * Озвучивает ход времени по текущему состоянию: тиканье на 1..10 сек и сигнал

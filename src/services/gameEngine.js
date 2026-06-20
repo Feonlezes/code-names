@@ -23,7 +23,7 @@ const timer = require('./timerService');
 // task 1: пауза перед применением единогласного решения агентов, мс. Это же
 // число задаёт длительность лоадера на клиенте (public/styles.css: @keyframes
 // voteLoad / skipLoad) — держим их синхронными.
-const VOTE_COUNTDOWN_MS = 2000;
+const VOTE_COUNTDOWN_MS = 1500;
 
 /**
  * Перезапускает таймер под текущую фазу комнаты: на каждый тик — рассылка
