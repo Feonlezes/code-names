@@ -4,7 +4,8 @@
  * @module ui/board.view
  * Рендер игрового поля: слова, открытые/известные капитану цвета, голосование
  * агентов (кружки проголосовавших + 2-сек лоадер перед открытием карты, task 1)
- * и подсветка карт капитану в начале игры. Для капитана уже открытые карты
+ * и подсветка карт капитану при заходе за лидера (пульсирующее свечение в цвет карты).
+ * Для капитана уже открытые карты
  * гасятся в серый (task 3), чтобы внимание было на оставшихся.
  */
 
@@ -16,11 +17,12 @@ import { avatarColor } from '../util/color.js';
 
 /**
  * Перерисовывает поле по текущему состоянию.
- * @param {boolean} gameJustStarted - игра только что началась (для подсветки
- *   капитану его карт)
+ * @param {boolean} spotlightSpymaster - игрок только что зашёл за лидера в
+ *   активной игре (старт партии или смена роли на паузе) — подсвечиваем
+ *   капитану его карты миганием в цвет карточки
  * @returns {void}
  */
-export function renderBoard(gameJustStarted) {
+export function renderBoard(spotlightSpymaster) {
   const state = getState();
   const board = $('#board');
   board.className = 'board size-' + (state.settings.boardSize);
@@ -48,8 +50,8 @@ export function renderBoard(gameJustStarted) {
     } else if (c.color) {
       cell.classList.add('know-' + c.color); // капитан видит цвета
     }
-    // При старте игры подсвечиваем капитану его карты.
-    if (gameJustStarted && my && my.role === 'spymaster' && !c.revealed && c.color === my.team) {
+    // При заходе за лидера подсвечиваем капитану его карты (мигание в цвет карты).
+    if (spotlightSpymaster && my && my.role === 'spymaster' && !c.revealed && c.color === my.team) {
       cell.classList.add('spotlight');
     }
     if (canGuess && !c.revealed) {

@@ -74,10 +74,8 @@
       <!-- Левая команда: красные -->
       <aside class="sidebar sidebar-left">
         <div class="team-block team-red" id="team-red">
-          <div class="team-header">
-            <span>🔴 Красные</span>
-            <span class="score hidden" id="score-red">—</span>
-          </div>
+          <!-- Крупная цифра оставшихся слов — фоном по центру карточки (watermark). -->
+          <div class="team-watermark hidden" id="score-red" aria-hidden="true">—</div>
           <div class="team-section">
             <button class="link-btn btn-team" data-team="red" data-role="spymaster" id="red-join-spymaster">Стать капитаном</button>
             <ul class="player-list" id="red-spymasters"></ul>
@@ -85,23 +83,23 @@
             <ul class="player-list" id="red-operatives"></ul>
             <button class="link-btn btn-team" data-team="red" data-role="operative" id="red-join-operative">Войти в команду</button>
           </div>
-          <!-- Подвал карточки: ввод подсказки (капитан) и кнопка пропуска хода —
-               управляются teams.view. -->
+          <!-- Подвал карточки: кнопка пропуска хода (агенты) — управляется teams.view. -->
           <div class="team-footer">
+            <button class="btn btn-warning btn-sm skip-btn hidden" id="red-skip-btn" data-team="red">⏭ Пропустить ход</button>
+            <div class="vote-dots vote-dots-skip" id="red-skip-dots"></div>
+            <div class="skip-loader hidden" id="red-skip-loader"><div class="skip-loader-bar" id="red-skip-loader-bar"></div></div>
+          </div>
+          <!-- История подсказок прижата к низу карточки: вместо заголовка — черта
+               во всю ширину карточки, под ней список подсказок, а в самом низу (под
+               последним загаданным словом) — поле ввода подсказки капитаном. -->
+          <div class="clue-history-wrap hidden" id="red-clue-history-wrap">
+            <div class="clue-history-line"></div>
+            <ul class="clue-history" id="red-clue-history"></ul>
             <div class="clue-input-wrap hidden" id="red-clue-input-wrap">
               <input class="input clue-input" id="red-clue-input" type="text" maxlength="40" autocomplete="off" aria-label="Подсказка команды">
               <button class="btn btn-primary clue-add" id="red-clue-add" title="Дать подсказку">+</button>
             </div>
             <p class="clue-error" id="red-clue-error"></p>
-            <button class="btn btn-warning btn-sm skip-btn hidden" id="red-skip-btn" data-team="red">⏭ Пропустить ход</button>
-            <div class="vote-dots vote-dots-skip" id="red-skip-dots"></div>
-            <div class="skip-loader hidden" id="red-skip-loader"><div class="skip-loader-bar" id="red-skip-loader-bar"></div></div>
-          </div>
-          <!-- История подсказок прижата к низу карточки: вместо заголовка —
-               черта во всю ширину карточки, под ней список подсказок. -->
-          <div class="clue-history-wrap hidden" id="red-clue-history-wrap">
-            <div class="clue-history-line"></div>
-            <ul class="clue-history" id="red-clue-history"></ul>
           </div>
         </div>
       </aside>
@@ -118,10 +116,8 @@
       <!-- Правая команда: синие -->
       <aside class="sidebar sidebar-right">
         <div class="team-block team-blue" id="team-blue">
-          <div class="team-header">
-            <span>🔵 Синие</span>
-            <span class="score hidden" id="score-blue">—</span>
-          </div>
+          <!-- Крупная цифра оставшихся слов — фоном по центру карточки (watermark). -->
+          <div class="team-watermark hidden" id="score-blue" aria-hidden="true">—</div>
           <div class="team-section">
             <button class="link-btn btn-team" data-team="blue" data-role="spymaster" id="blue-join-spymaster">Стать капитаном</button>
             <ul class="player-list" id="blue-spymasters"></ul>
@@ -129,23 +125,23 @@
             <ul class="player-list" id="blue-operatives"></ul>
             <button class="link-btn btn-team" data-team="blue" data-role="operative" id="blue-join-operative">Войти в команду</button>
           </div>
-          <!-- Подвал карточки: ввод подсказки (капитан) и кнопка пропуска хода —
-               управляются teams.view. -->
+          <!-- Подвал карточки: кнопка пропуска хода (агенты) — управляется teams.view. -->
           <div class="team-footer">
+            <button class="btn btn-warning btn-sm skip-btn hidden" id="blue-skip-btn" data-team="blue">⏭ Пропустить ход</button>
+            <div class="vote-dots vote-dots-skip" id="blue-skip-dots"></div>
+            <div class="skip-loader hidden" id="blue-skip-loader"><div class="skip-loader-bar" id="blue-skip-loader-bar"></div></div>
+          </div>
+          <!-- История подсказок прижата к низу карточки: вместо заголовка — черта
+               во всю ширину карточки, под ней список подсказок, а в самом низу (под
+               последним загаданным словом) — поле ввода подсказки капитаном. -->
+          <div class="clue-history-wrap hidden" id="blue-clue-history-wrap">
+            <div class="clue-history-line"></div>
+            <ul class="clue-history" id="blue-clue-history"></ul>
             <div class="clue-input-wrap hidden" id="blue-clue-input-wrap">
               <input class="input clue-input" id="blue-clue-input" type="text" maxlength="40" autocomplete="off" aria-label="Подсказка команды">
               <button class="btn btn-primary clue-add" id="blue-clue-add" title="Дать подсказку">+</button>
             </div>
             <p class="clue-error" id="blue-clue-error"></p>
-            <button class="btn btn-warning btn-sm skip-btn hidden" id="blue-skip-btn" data-team="blue">⏭ Пропустить ход</button>
-            <div class="vote-dots vote-dots-skip" id="blue-skip-dots"></div>
-            <div class="skip-loader hidden" id="blue-skip-loader"><div class="skip-loader-bar" id="blue-skip-loader-bar"></div></div>
-          </div>
-          <!-- История подсказок прижата к низу карточки: вместо заголовка —
-               черта во всю ширину карточки, под ней список подсказок. -->
-          <div class="clue-history-wrap hidden" id="blue-clue-history-wrap">
-            <div class="clue-history-line"></div>
-            <ul class="clue-history" id="blue-clue-history"></ul>
           </div>
         </div>
       </aside>

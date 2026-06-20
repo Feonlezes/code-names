@@ -88,25 +88,31 @@ export function renderTeams() {
     $('#' + team + '-join-spymaster').classList.toggle('hidden', !canPick || teamHasSpymaster);
     $('#' + team + '-join-operative').classList.toggle('hidden', !canPick);
 
-    renderClueHistory(state, team);
-    renderClueInput(state, my, team);
+    // Капитан текущей команды в фазе clue (вне паузы) вправе дать подсказку —
+    // от этого зависит и видимость блока истории (поле ввода живёт внутри него).
+    const canGiveClue = my && my.team === team && my.role === 'spymaster' &&
+                        state.phase === 'clue' && state.currentTeam === team && !state.paused;
+    renderClueHistory(state, team, canGiveClue);
+    renderClueInput(state, my, team, canGiveClue);
     renderSkip(state, my, team);
   }
 }
 
 /**
- * Рисует историю подсказок команды (слово + число) в подвале её карточки.
- * Скрывает блок, если подсказок ещё не было.
+ * Рисует историю подсказок команды (слово + число) в блоке у низа её карточки.
+ * Поле ввода подсказки живёт внутри этого же блока (под списком слов), поэтому
+ * блок виден, если есть хотя бы одна подсказка ИЛИ капитану сейчас нужно её
+ * вводить (`showInput`) — иначе на самой первой подсказке поле было бы скрыто.
  * @param {Object} state - снимок состояния
  * @param {('red'|'blue')} team
+ * @param {boolean} showInput - капитан текущей команды вправе дать подсказку
  * @returns {void}
  */
-function renderClueHistory(state, team) {
+function renderClueHistory(state, team, showInput) {
   const wrap = $('#' + team + '-clue-history-wrap');
   const ul = $('#' + team + '-clue-history');
   const hist = (state.clueHistory && state.clueHistory[team]) || [];
-  if (!hist.length) { wrap.classList.add('hidden'); ul.innerHTML = ''; return; }
-  wrap.classList.remove('hidden');
+  wrap.classList.toggle('hidden', !hist.length && !showInput);
   // Без числа-ориентира (капитан ввёл только слово) показываем «?».
   ul.innerHTML = hist.map(c =>
     `<li><span class="ch-word">${escapeHtml(c.word)}</span>` +
@@ -115,17 +121,17 @@ function renderClueHistory(state, team) {
 }
 
 /**
- * Показывает поле ввода подсказки только капитану текущей команды в фазе clue
- * (вне паузы). Поле статично в DOM — значение не затирается при перерисовке.
+ * Показывает поле ввода подсказки (внутри блока истории, под списком слов) только
+ * капитану текущей команды в фазе clue (вне паузы). Поле статично в DOM — значение
+ * не затирается при перерисовке.
  * @param {Object} state - снимок состояния
  * @param {Object|undefined} my - запись текущего игрока
  * @param {('red'|'blue')} team
+ * @param {boolean} canGiveClue - капитан текущей команды вправе дать подсказку
  * @returns {void}
  */
-function renderClueInput(state, my, team) {
+function renderClueInput(state, my, team, canGiveClue) {
   const wrap = $('#' + team + '-clue-input-wrap');
-  const canGiveClue = my && my.team === team && my.role === 'spymaster' &&
-                      state.phase === 'clue' && state.currentTeam === team && !state.paused;
   const wasHidden = wrap.classList.contains('hidden');
   wrap.classList.toggle('hidden', !canGiveClue);
   if (canGiveClue && wasHidden) {

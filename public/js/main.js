@@ -12,7 +12,7 @@ import { DEFAULTS, WORDS } from './config.js';
 import { LS } from './storage/localStore.js';
 import { IN, OUT } from './net/messages.js';
 import { connect, send, setMessageHandler, isOpen, closeSocket } from './net/socket.js';
-import { getState, setState, resetSig, sigChanged } from './state/store.js';
+import { getState, setState, resetSig, sigChanged, me } from './state/store.js';
 import { ensureAudio, handleSound } from './audio/sound.js';
 import { show } from './ui/screens.js';
 import { showToast } from './ui/toast.js';
@@ -29,7 +29,10 @@ let pendingRoom = '';       // комната из ссылки-приглаше
 let manualJoin = false;     // была ли последняя попытка входа явной (см. joinRoom)
 // Отслеживание переходов между состояниями (для тостов/подсветки).
 let prevHostId = undefined;
-let prevPhase = null;
+// Был ли игрок капитаном в активной игре на прошлом кадре — чтобы подсветить
+// карты ровно в момент «захода за лидера» (старт партии или смена роли на паузе),
+// а не на каждом структурном перерендере.
+let prevSpyInGame = false;
 
 // ---------- Обработка входящих сообщений ----------
 /**
@@ -116,12 +119,16 @@ function render() {
   if (prevHostId !== undefined && prevHostId !== state.hostId && state.hostId === state.you) {
     showToast('👑 Вы стали лидером комнаты');
   }
-  // Игра только что началась — для подсветки карт капитану.
-  const gameJustStarted = (prevPhase === 'lobby' || prevPhase === 'over') && inGame;
+  // Заход за лидера: игрок стал капитаном в активной игре (старт партии или
+  // смена роли на паузе). Подсвечиваем его карты только в этот переход, иначе
+  // анимация перезапускалась бы на каждом структурном рендере (голоса, таймер).
+  const my = me();
+  const spyInGame = !!(my && my.role === 'spymaster' && inGame);
+  const enteredSpymaster = spyInGame && !prevSpyInGame;
 
   if (sigChanged()) {
     renderTeams();
-    renderBoard(gameJustStarted);
+    renderBoard(enteredSpymaster);
     renderControls();
     renderSettings();
     renderLog();
@@ -131,7 +138,7 @@ function render() {
   handleSound(state);
 
   prevHostId = state.hostId;
-  prevPhase = state.phase;
+  prevSpyInGame = spyInGame;
 }
 
 // ---------- Привязка событий ----------
