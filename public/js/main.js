@@ -18,8 +18,7 @@ import { show } from './ui/screens.js';
 import { showToast } from './ui/toast.js';
 import { renderTeams, bindTeamActions } from './ui/teams.view.js';
 import { renderBoard } from './ui/board.view.js';
-import { renderStatus, flashStatus } from './ui/status.view.js';
-import { renderClueBar } from './ui/clue.view.js';
+import { renderStatus } from './ui/status.view.js';
 import { renderControls } from './ui/controls.view.js';
 import { renderSettings, readSettingsForm } from './ui/settings.view.js';
 import { renderLog } from './ui/log.view.js';
@@ -28,9 +27,8 @@ import { renderWin, copyFeedback, openNickModal } from './ui/modals.js';
 const playerId = LS.id;
 let pendingRoom = '';       // комната из ссылки-приглашения
 let manualJoin = false;     // была ли последняя попытка входа явной (см. joinRoom)
-// Отслеживание переходов между состояниями (для тостов/мигания/подсветки).
+// Отслеживание переходов между состояниями (для тостов/подсветки).
 let prevHostId = undefined;
-let prevCurrentTeam = null;
 let prevPhase = null;
 
 // ---------- Обработка входящих сообщений ----------
@@ -118,26 +116,21 @@ function render() {
   if (prevHostId !== undefined && prevHostId !== state.hostId && state.hostId === state.you) {
     showToast('👑 Вы стали лидером комнаты');
   }
-  // Ход перешёл к другой команде (или началась игра).
-  const turnChanged = inGame && prevCurrentTeam !== state.currentTeam;
   // Игра только что началась — для подсветки карт капитану.
   const gameJustStarted = (prevPhase === 'lobby' || prevPhase === 'over') && inGame;
 
   if (sigChanged()) {
     renderTeams();
     renderBoard(gameJustStarted);
-    renderClueBar();
     renderControls();
     renderSettings();
     renderLog();
     renderWin();
   }
   renderStatus();   // таймер обновляется каждую секунду
-  if (turnChanged) flashStatus(state.currentTeam);
   handleSound(state);
 
   prevHostId = state.hostId;
-  prevCurrentTeam = inGame ? state.currentTeam : null;
   prevPhase = state.phase;
 }
 

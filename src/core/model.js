@@ -17,6 +17,14 @@
  * @property {('red'|'blue'|'neutral'|'assassin')} color
  * @property {boolean} revealed
  *
+ * @typedef {Object} Votes
+ * @property {Object<number, Array<string>>} cards - индекс карты → id проголосовавших агентов
+ * @property {Array<string>} skip - id агентов, проголосовавших за пропуск хода
+ *
+ * @typedef {Object} PendingVote
+ * @property {('guess'|'skip')} kind - что назрело: открыть карту или пропустить ход
+ * @property {(number|null)} index - индекс карты для kind==='guess' (иначе null)
+ *
  * @typedef {Object} Room
  * @property {string} code
  * @property {string} hostId
@@ -24,8 +32,11 @@
  * @property {Object} settings
  * @property {('lobby'|'clue'|'guess'|'over')} phase
  * @property {Array<Card>} board
+ * @property {Votes} votes - текущие голоса агентов в фазе угадывания (task 1)
+ * @property {(PendingVote|null)} pendingVote - идёт ли 2-сек отсчёт единогласия
  * @property {Set<*>} _sockets   - внутреннее: активные сокеты (не сериализуется)
  * @property {*} _interval        - внутреннее: дескриптор таймера (не сериализуется)
+ * @property {*} _voteTimeout     - внутреннее: дескриптор отсчёта голосования (не сериализуется)
  */
 
 const { DEFAULT_SETTINGS } = require('../config');
@@ -54,12 +65,19 @@ function createRoomObject(code, hostId, settings) {
     // История всех подсказок по командам: { red: [{word, number}], blue: [...] }.
     // Показывается в карточке команды (см. client.md). Накапливается за партию.
     clueHistory: { red: [], blue: [] },
+    // Голосование агентов в фазе угадывания (task 1): каждый агент текущей команды
+    // может выбрать ровно одну карту ИЛИ пропуск хода — его кружок виден всем.
+    // Когда ВСЕ подключённые агенты выбрали одно и то же, запускается 2-сек отсчёт
+    // (pendingVote), по завершении которого действие применяется.
+    votes: { cards: {}, skip: [] }, // cards: { индекс -> [id агентов] }
+    pendingVote: null,              // { kind:'guess'|'skip', index } во время отсчёта
     timer: 0,
     paused: false,
     winner: null,
     log: [],
     _sockets: new Set(),
-    _interval: null
+    _interval: null,
+    _voteTimeout: null
   };
 }
 

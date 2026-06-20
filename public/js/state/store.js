@@ -32,6 +32,10 @@ export function structuralSig() {
     // Длины историй подсказок — чтобы карточки команд перерисовывались при
     // появлении новой подсказки (таймер по-прежнему вне сигнатуры).
     clueHist: state.clueHistory ? [state.clueHistory.red.length, state.clueHistory.blue.length] : null,
+    // Голоса агентов и идущий отсчёт (task 1) — чтобы кружки и лоадер появлялись/
+    // исчезали при изменении голосования (таймер по-прежнему вне сигнатуры).
+    votes: state.votes,
+    pendingVote: state.pendingVote,
     paused: state.paused,
     winner: state.winner,
     host: state.hostId,

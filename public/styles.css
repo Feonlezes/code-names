@@ -170,6 +170,19 @@ select.input {
 .team-red { border-left: 2px solid #ff6450; background: rgba(255, 100, 80, 0.08); }
 /* Синяя полоса — со стороны правого края страницы (правый бордер). */
 .team-blue { border-right: 2px solid #50bbff; background: rgba(80, 187, 255, 0.1); }
+/* Неоновая подсветка карточки команды, чей сейчас ход (task 4). Свечение идёт от
+   карточки к центру поля (красная — вправо, синяя — влево) и мягко пульсирует —
+   именно оно, а не центральная плашка, показывает, чей ход. */
+.team-red.active-turn { border-color: #ff6450; animation: neonRed 1.5s ease-in-out infinite alternate; }
+.team-blue.active-turn { border-color: #50bbff; animation: neonBlue 1.5s ease-in-out infinite alternate; }
+@keyframes neonRed {
+  from { box-shadow: 10px 0 22px -6px rgba(255,100,80,.5), 0 0 10px rgba(255,100,80,.3); }
+  to   { box-shadow: 22px 0 42px -4px rgba(255,100,80,.95), 0 0 22px rgba(255,100,80,.7); }
+}
+@keyframes neonBlue {
+  from { box-shadow: -10px 0 22px -6px rgba(80,187,255,.5), 0 0 10px rgba(80,187,255,.3); }
+  to   { box-shadow: -22px 0 42px -4px rgba(80,187,255,.95), 0 0 22px rgba(80,187,255,.7); }
+}
 .team-header { display: flex; justify-content: space-between; font-weight: 700; margin-bottom: 8px; }
 .score { font-size: 22px; }
 .team-red .score { color: var(--red); }
@@ -203,22 +216,32 @@ select.input {
 .clue-add { padding: 0 14px; font-size: 20px; line-height: 1; flex-shrink: 0; }
 .clue-error { color: var(--red); font-size: 12px; margin: 0; min-height: 0; }
 .clue-error:empty { display: none; }
-/* История подсказок команды (task 4). */
+/* История подсказок команды (task 4). Без карточек-фона: слово, а сразу справа
+   от него — число-ориентир (task 2). */
 .clue-history-title { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
-.clue-history { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 160px; overflow-y: auto; }
+.clue-history { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 160px; overflow-y: auto; }
 .clue-history li {
-  display: flex; justify-content: space-between; align-items: center; gap: 8px;
-  font-size: 14px; padding: 3px 8px; background: var(--bg-3); border-radius: 6px;
+  display: flex; align-items: baseline; gap: 6px;
+  font-size: 14px; padding: 2px 2px;
 }
 .clue-history .ch-word { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.clue-history .ch-num {
-  flex-shrink: 0; min-width: 22px; height: 22px; line-height: 22px; text-align: center;
-  background: var(--panel); border-radius: 50%; font-size: 13px; font-weight: 700;
-}
-/* Кнопка «Пропустить ход» и её 3-секундный лоадер (task 5). */
+/* Число — сразу за словом, приглушённым цветом, без кружка-фона. */
+.clue-history .ch-num { flex-shrink: 0; color: var(--muted); font-weight: 700; font-size: 13px; }
+/* Кнопка «Пропустить ход» — голосование (task 1): подсветка при моём голосе,
+   кружки проголосовавших под ней и 2-сек лоадер при единогласии. */
 .skip-btn { width: 100%; }
+.skip-btn.voted { box-shadow: 0 0 0 2px var(--warning) inset; filter: brightness(1.1); }
+/* Кружки голосов под кнопкой пропуска — в обычном потоке (сбрасываем абсолютное
+   позиционирование .vote-dots), по центру, могут переноситься. */
+.vote-dots-skip {
+  position: static; top: auto; right: auto; max-width: none;
+  justify-content: center; pointer-events: auto;
+}
+.vote-dots-skip:empty { display: none; }
 .skip-loader { width: 100%; height: 8px; background: var(--bg-3); border-radius: 4px; overflow: hidden; }
-.skip-loader-bar { height: 100%; width: 0; background: var(--warning, #f5a623); border-radius: 4px; }
+/* Полоса заполняется за 2 с — синхронно с VOTE_COUNTDOWN_MS на сервере. Анимация
+   проигрывается заново при каждом показе (display:none → block). */
+.skip-loader-bar { height: 100%; width: 0; background: var(--warning, #f5a623); border-radius: 4px; animation: voteLoad 2s linear forwards; }
 
 /* ---------- Main / status ---------- */
 .main { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
@@ -228,32 +251,10 @@ select.input {
   border-radius: 12px; padding: 10px 16px; flex-shrink: 0;
 }
 .status-text { font-size: 16px; font-weight: 600; padding: 4px 10px; border-radius: 8px; }
-.status-text.turn-red { color: var(--red); }
-.status-text.turn-blue { color: var(--blue); }
-/* двойное мигание при смене хода */
-.status-text.flash-red  { animation: flashRed 1.1s ease-in-out 1; }
-.status-text.flash-blue { animation: flashBlue 1.1s ease-in-out 1; }
-@keyframes flashRed {
-  0%,50%,100% { background: transparent; color: var(--red); }
-  25%,75% { background: var(--red); color: #fff; }
-}
-@keyframes flashBlue {
-  0%,50%,100% { background: transparent; color: var(--blue); }
-  25%,75% { background: var(--blue); color: #fff; }
-}
 .status-right { display: flex; align-items: center; gap: 10px; }
 .timer { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .timer.low { color: var(--red); animation: pulse 1s infinite; }
 @keyframes pulse { 50% { opacity: .4; } }
-
-/* ---------- Clue bar ---------- */
-.clue-bar {
-  background: var(--panel); border: 1px solid var(--border);
-  border-radius: 12px; padding: 12px 16px; flex-shrink: 0;
-  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-}
-.clue-display { font-size: 20px; font-weight: 700; }
-.clue-display .num { display:inline-block; min-width:28px; height:28px; line-height:28px; text-align:center; background:var(--bg-3); border-radius:50%; margin-left:8px; }
 
 /* ---------- Board (заполняет доступную высоту, без скролла) ---------- */
 .board {
@@ -318,6 +319,38 @@ select.input {
 .cell.revealed.c-assassin { background: #000; border-color: #000; color: #e2574c; }
 .cell.revealed.c-assassin::after { content: "💀"; position:absolute; font-size: 22px; opacity:.5; }
 .cell.revealed:hover { transform: none; box-shadow: none; }
+
+/* Капитану уже открытые карты гасим в серый (task 3): внимание остаётся на
+   неоткрытых. Перекрываем яркую заливку открытых карт. */
+.cell.revealed.dim-guessed {
+  background: #232a34 !important;
+  color: #525c6b !important;
+  border-color: #313a47 !important;
+  box-shadow: none !important;
+}
+.cell.revealed.dim-guessed.c-assassin::after { opacity: .25; }
+
+/* ---------- Голосование агентов на поле (task 1) ---------- */
+/* Кружки проголосовавших — в правом верхнем углу карты. */
+.vote-dots {
+  position: absolute; top: 4px; right: 4px;
+  display: flex; flex-wrap: wrap; gap: 3px; justify-content: flex-end;
+  max-width: 75%; pointer-events: none;
+}
+.vote-dot {
+  width: 13px; height: 13px; border-radius: 50%;
+  border: 2px solid rgba(0,0,0,.35);
+  box-shadow: 0 0 4px rgba(0,0,0,.55);
+}
+/* Мой собственный голос обводим белым, чтобы было видно, за что голосую я. */
+.vote-dot.mine { border-color: #fff; }
+/* 2-сек лоадер снизу карты при единогласии (синхронно с VOTE_COUNTDOWN_MS). */
+.cell-loader {
+  position: absolute; left: 6px; right: 6px; bottom: 5px;
+  height: 6px; background: rgba(0,0,0,.4); border-radius: 3px; overflow: hidden;
+}
+.cell-loader-bar { height: 100%; width: 0; background: #fff; border-radius: 3px; animation: voteLoad 2s linear forwards; }
+@keyframes voteLoad { from { width: 0; } to { width: 100%; } }
 
 /* ---------- Controls ---------- */
 .game-controls { display: flex; gap: 10px; justify-content: center; flex-shrink: 0; flex-wrap: wrap; }

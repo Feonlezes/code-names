@@ -144,13 +144,13 @@ function handleMessage(ws, data) {
       gameEngine.giveClue(room, player, msg.word, msg.number, ctx);
       break;
     case IN.GUESS:
-      gameEngine.makeGuess(room, player, msg.index, ctx);
+      // task 1: клик по карте — это ГОЛОС агента, а не мгновенное открытие.
+      // Карта откроется только после 2-сек единогласия (см. gameEngine.voteCard).
+      gameEngine.voteCard(room, player, msg.index, ctx);
       break;
     case IN.END_TURN:
-      if (room.phase === 'guess' && player.team === room.currentTeam) {
-        addLog(room, `${player.nickname} завершил ход.`);
-        gameEngine.endTurn(room, ctx);
-      }
+      // task 1: «Пропустить ход» — тоже голос; ход перейдёт по единогласию агентов.
+      gameEngine.voteSkip(room, player, ctx);
       break;
     case IN.PAUSE:
       if (room.phase === 'clue' || room.phase === 'guess') {
@@ -186,6 +186,8 @@ function handleMessage(ws, data) {
 function handleLeave(ws, room) {
   room._sockets.delete(ws);
   roomService.removePlayer(room, ws.playerId);
+  // Снять «зависший» голос ушедшего и пересчитать единогласие (task 1).
+  gameEngine.handleVoterGone(room, ws.playerId, ctx);
   ws.roomCode = null;
   broadcast(room);
   roomService.maybeCleanup(room);
@@ -211,6 +213,8 @@ function handleClose(ws) {
   );
   if (stillConnected) { broadcast(room); return; }
   roomService.disconnectPlayer(room, ws.playerId);
+  // Отключившийся больше не «голосует» — убираем его голос и пересчитываем (task 1).
+  gameEngine.handleVoterGone(room, ws.playerId, ctx);
   broadcast(room);
   roomService.maybeCleanup(room);
 }

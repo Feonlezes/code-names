@@ -44,6 +44,10 @@ function stateFor(room, playerId) {
     currentTeam: room.currentTeam,
     clue: room.clue,
     clueHistory: room.clueHistory,
+    // Голоса агентов и идущий 2-сек отсчёт (task 1) — видны всем, чтобы рисовать
+    // кружки проголосовавших и лоадер. Секретов не раскрывают (только id игроков).
+    votes: room.votes,
+    pendingVote: room.pendingVote,
     timer: room.timer,
     paused: room.paused,
     winner: room.winner,

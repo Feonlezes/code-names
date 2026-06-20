@@ -4,36 +4,17 @@
  * @module ui/teams.view
  * Рендер карточек команд: списки игроков (капитан/агенты), счёт, кнопки выбора
  * стороны, а также подвал карточки — ввод подсказки капитаном (task 7), история
- * подсказок команды (task 4) и кнопка «Пропустить ход» с 3-секундным лоадером
- * (task 5). Выбор стороны/роли доступен в лобби и на паузе (task 2).
+ * подсказок команды (task 4) и кнопка «Пропустить ход» (task 1: голосование с
+ * кружками агентов и 2-сек лоадером единогласия). Карточка команды, чей сейчас
+ * ход, получает неоновую подсветку (task 4). Выбор стороны/роли доступен в лобби
+ * и на паузе (task 2).
  */
 
 import { $, $$, escapeHtml } from '../util/dom.js';
 import { getState, me } from '../state/store.js';
 import { send } from '../net/socket.js';
 import { IN } from '../net/messages.js';
-
-// Длительность лоадера кнопки пропуска хода, мс (task 5: «полоса в 3 секунды»).
-const SKIP_DELAY_MS = 3000;
-
-// Команда, у которой сейчас «крутится» лоадер пропуска хода (или null). Состояние
-// лоадера живёт между рендерами: посекундный тик не должен его сбрасывать.
-let pendingSkipTeam = null;
-let skipTimer = null;
-
-/**
- * Возвращает стабильный «случайный» цвет для игрока по его id. Детерминированный
- * (один и тот же id → один и тот же цвет), чтобы кружок не мигал при каждом
- * перерендере. Цвет в HSL с фиксированной насыщенностью/светлотой.
- * @param {string} id - идентификатор игрока
- * @returns {string} CSS-цвет вида `hsl(...)`
- */
-function avatarColor(id) {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0;
-  const hue = Math.abs(hash) % 360;
-  return `hsl(${hue}, 65%, 55%)`;
-}
+import { avatarColor } from '../util/color.js';
 
 // Сколько имён наблюдателей показываем в шапке до сворачивания в «+N».
 const OBSERVERS_SHOWN = 6;
@@ -88,7 +69,13 @@ export function renderTeams() {
   const inLobby = state.phase === 'lobby';
   // Выбирать команду/роль можно в лобби и на паузе (task 2).
   const canPick = inLobby || state.paused;
+  // Чья сейчас очередь ходить — для неоновой подсветки карточки (task 4).
+  const activeTeam = (state.phase === 'clue' || state.phase === 'guess') && !state.paused
+    ? state.currentTeam : null;
   for (const team of ['red', 'blue']) {
+    // Неоновая подсветка карточки активной команды (task 4).
+    $('#team-' + team).classList.toggle('active-turn', activeTeam === team);
+
     // Счёт оставшихся карт показываем только в игре (вне лобби).
     const scoreEl = $('#score-' + team);
     scoreEl.classList.toggle('hidden', inLobby);
@@ -147,10 +134,12 @@ function renderClueInput(state, my, team) {
 }
 
 /**
- * Управляет кнопкой «Пропустить ход» и её лоадером. Кнопка видна членам текущей
- * команды в фазе угадывания (вне паузы). Если лоадер для команды уже запущен —
- * не трогаем его (анимация идёт независимо от посекундных рендеров); если ход
- * команды закончился, лоадер отменяем.
+ * Управляет кнопкой «Пропустить ход» как голосованием (task 1). Кнопка видна
+ * агентам текущей команды в фазе угадывания (вне паузы); под ней — кружки
+ * проголосовавших за пропуск и 2-сек лоадер, когда за пропуск проголосовали все.
+ * Клик отправляет голос (повторный — снимает), а сам переход хода делает сервер
+ * по единогласию. Состояние лоадера приходит из state.pendingVote, поэтому
+ * посекундный тик его не сбрасывает.
  * @param {Object} state - снимок состояния
  * @param {Object|undefined} my - запись текущего игрока
  * @param {('red'|'blue')} team
@@ -158,19 +147,30 @@ function renderClueInput(state, my, team) {
  */
 function renderSkip(state, my, team) {
   const isCurrentGuess = state.phase === 'guess' && state.currentTeam === team && !state.paused;
-  // Ход команды закончился, а лоадер ещё «крутится» — отменяем.
-  if (pendingSkipTeam === team && !isCurrentGuess) cancelSkip();
-
   const btn = $('#' + team + '-skip-btn');
+  const dots = $('#' + team + '-skip-dots');
   const loader = $('#' + team + '-skip-loader');
-  if (pendingSkipTeam === team) {
-    // Лоадер в процессе: кнопка скрыта, полосу не трогаем.
-    btn.classList.add('hidden');
-    return;
-  }
-  const showSkip = isCurrentGuess && my && my.team === team;
+
+  // Кнопка — только агентам текущей команды (капитан не голосует).
+  const showSkip = isCurrentGuess && my && my.team === team && my.role === 'operative';
   btn.classList.toggle('hidden', !showSkip);
-  loader.classList.add('hidden');
+
+  // Кружки проголосовавших за пропуск (видны всем, пока идёт ход команды).
+  const skipVoters = isCurrentGuess ? ((state.votes && state.votes.skip) || []) : [];
+  dots.innerHTML = skipVoters.map(id =>
+    `<span class="vote-dot${id === state.you ? ' mine' : ''}" style="background:${avatarColor(id)}"></span>`
+  ).join('');
+  // Подсветим саму кнопку, если я уже отдал голос за пропуск.
+  btn.classList.toggle('voted', !!my && skipVoters.includes(my.id));
+
+  // 2-сек лоадер при единогласии за пропуск. Появление (display:none→block)
+  // перезапускает CSS-анимацию; при этом прокручиваем кнопку в зону видимости.
+  const pendingSkip = isCurrentGuess && state.pendingVote && state.pendingVote.kind === 'skip';
+  loader.classList.toggle('hidden', !pendingSkip);
+  if (pendingSkip && loader.dataset.shown !== '1') {
+    btn.scrollIntoView({ block: 'nearest' });
+  }
+  loader.dataset.shown = pendingSkip ? '1' : '';
 }
 
 /**
@@ -215,51 +215,6 @@ function submitClue(team) {
 }
 
 /**
- * Запускает 3-секундный лоадер на кнопке пропуска и по его завершении передаёт
- * ход (endTurn). Повторный клик во время лоадера игнорируется.
- * @param {('red'|'blue')} team
- * @returns {void}
- */
-function startSkip(team) {
-  if (pendingSkipTeam) return;
-  pendingSkipTeam = team;
-  $('#' + team + '-skip-btn').classList.add('hidden');
-  const loader = $('#' + team + '-skip-loader');
-  const bar = $('#' + team + '-skip-loader-bar');
-  loader.classList.remove('hidden');
-  // Перезапуск CSS-перехода: ширина 0 → 100% за SKIP_DELAY_MS.
-  bar.style.transition = 'none';
-  bar.style.width = '0%';
-  void bar.offsetWidth; // форсируем reflow, чтобы переход проиграл с нуля
-  bar.style.transition = `width ${SKIP_DELAY_MS}ms linear`;
-  bar.style.width = '100%';
-  skipTimer = setTimeout(() => {
-    skipTimer = null;
-    pendingSkipTeam = null;
-    loader.classList.add('hidden');
-    send({ type: IN.END_TURN });
-  }, SKIP_DELAY_MS);
-}
-
-/**
- * Отменяет запущенный лоадер пропуска хода и возвращает кнопку/полосу в исходное
- * состояние (например, ход команды закончился раньше по другой причине).
- * @returns {void}
- */
-function cancelSkip() {
-  if (skipTimer) { clearTimeout(skipTimer); skipTimer = null; }
-  const team = pendingSkipTeam;
-  pendingSkipTeam = null;
-  if (team) {
-    const loader = $('#' + team + '-skip-loader');
-    const bar = $('#' + team + '-skip-loader-bar');
-    loader.classList.add('hidden');
-    bar.style.transition = 'none';
-    bar.style.width = '0%';
-  }
-}
-
-/**
  * Навешивает обработчики на интерактивные элементы подвалов команд (ввод
  * подсказки и кнопки пропуска). DOM этих элементов статичен, поэтому привязка
  * выполняется один раз при старте.
@@ -272,7 +227,9 @@ export function bindTeamActions() {
       if (e.key === 'Enter') submitClue(team);
     });
   }
+  // Клик по «Пропустить ход» — это голос (повторный снимает). Команду сервер
+  // берёт из игрока, поэтому тело сообщения пустое (task 1).
   $$('.skip-btn').forEach(btn => {
-    btn.addEventListener('click', () => startSkip(btn.dataset.team));
+    btn.addEventListener('click', () => send({ type: IN.END_TURN }));
   });
 }

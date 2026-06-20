@@ -2,32 +2,32 @@
 
 /**
  * @module ui/status.view
- * Рендер строки статуса (фаза/чей ход), таймера и кнопок паузы/продолжения,
- * а также «мигание» заголовка при смене хода.
+ * Рендер строки статуса (фаза/чей ход), таймера и кнопок паузы/продолжения.
+ * Чей сейчас ход в игре показывает не текстовая «плашка», а неоновая подсветка
+ * карточки команды (task 4) — поэтому в активных фазах строка фазы скрыта.
  */
 
 import { $ } from '../util/dom.js';
 import { getState } from '../state/store.js';
 
 /**
- * Перерисовывает статус-бар: текст фазы, таймер и кнопки паузы. Таймер
- * обновляется каждую секунду (этот рендер вызывается на каждый тик).
+ * Перерисовывает статус-бар: текст фазы (только в лобби/после игры), таймер и
+ * кнопки паузы. В активных фазах текст хода убран — его роль играет неоновая
+ * подсветка карточки активной команды (task 4). Таймер обновляется каждую
+ * секунду (этот рендер вызывается на каждый тик).
  * @returns {void}
  */
 export function renderStatus() {
   const state = getState();
   const el = $('#status-text');
-  el.classList.remove('turn-red', 'turn-blue');
   let txt = '';
   if (state.phase === 'lobby') txt = '🛋 Лобби — распределите команды и начните игру';
   else if (state.phase === 'over') txt = state.winner ? `🏆 Победили ${state.winner === 'red' ? 'красные' : 'синие'}!` : 'Игра окончена';
-  else {
-    const team = state.currentTeam === 'red' ? 'красных' : 'синих';
-    el.classList.add('turn-' + state.currentTeam);
-    txt = state.phase === 'clue' ? `Ход ${team}: капитан даёт подсказку` : `Ход ${team}: команда угадывает`;
-    if (state.paused) txt += ' (пауза)';
-  }
+  else if (state.paused) txt = '⏸ Пауза';
+  // В активных фазах (clue/guess без паузы) строка пустая — чей ход видно по
+  // неоновой подсветке карточки команды.
   el.textContent = txt;
+  el.classList.toggle('hidden', txt === '');
 
   const timerEl = $('#timer');
   const inGame = state.phase === 'clue' || state.phase === 'guess';
@@ -38,16 +38,4 @@ export function renderStatus() {
   }
   $('#pause-btn').classList.toggle('hidden', !(inGame && !state.paused));
   $('#resume-btn').classList.toggle('hidden', !(inGame && state.paused));
-}
-
-/**
- * Двойное мигание заголовка хода цветом команды (перезапуск CSS-анимации).
- * @param {('red'|'blue')} team
- * @returns {void}
- */
-export function flashStatus(team) {
-  const el = $('#status-text');
-  el.classList.remove('flash-red', 'flash-blue');
-  void el.offsetWidth; // перезапуск анимации
-  el.classList.add('flash-' + team);
 }
