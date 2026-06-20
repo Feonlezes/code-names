@@ -12,8 +12,8 @@ import { DEFAULTS, WORDS } from './config.js';
 import { LS } from './storage/localStore.js';
 import { IN, OUT } from './net/messages.js';
 import { connect, send, setMessageHandler, isOpen, closeSocket } from './net/socket.js';
-import { getState, setState, resetSig, sigChanged } from './state/store.js';
-import { ensureAudio, handleSound } from './audio/sound.js';
+import { getState, setState, resetSig, sigChanged, me } from './state/store.js';
+import { ensureAudio, handleSound, soundClue } from './audio/sound.js';
 import { show } from './ui/screens.js';
 import { showToast } from './ui/toast.js';
 import { renderTeams, bindTeamActions } from './ui/teams.view.js';
@@ -29,7 +29,14 @@ let pendingRoom = '';       // комната из ссылки-приглаше
 let manualJoin = false;     // была ли последняя попытка входа явной (см. joinRoom)
 // Отслеживание переходов между состояниями (для тостов/подсветки).
 let prevHostId = undefined;
-let prevPhase = null;
+// Был ли игрок капитаном в активной игре на прошлом кадре — чтобы подсветить
+// карты ровно в момент «захода за лидера» (старт партии или смена роли на паузе),
+// а не на каждом структурном перерендере.
+let prevSpyInGame = false;
+// Кол-во подсказок в истории на прошлом кадре — рост означает, что лидер отправил
+// слово (см. render → soundClue). undefined на первом кадре, чтобы тихо
+// синхронизироваться при переподключении посреди партии без ложного звука.
+let prevClueCount = undefined;
 
 // ---------- Обработка входящих сообщений ----------
 /**
@@ -116,12 +123,16 @@ function render() {
   if (prevHostId !== undefined && prevHostId !== state.hostId && state.hostId === state.you) {
     showToast('👑 Вы стали лидером комнаты');
   }
-  // Игра только что началась — для подсветки карт капитану.
-  const gameJustStarted = (prevPhase === 'lobby' || prevPhase === 'over') && inGame;
+  // Заход за лидера: игрок стал капитаном в активной игре (старт партии или
+  // смена роли на паузе). Подсвечиваем его карты только в этот переход, иначе
+  // анимация перезапускалась бы на каждом структурном рендере (голоса, таймер).
+  const my = me();
+  const spyInGame = !!(my && my.role === 'spymaster' && inGame);
+  const enteredSpymaster = spyInGame && !prevSpyInGame;
 
   if (sigChanged()) {
     renderTeams();
-    renderBoard(gameJustStarted);
+    renderBoard(enteredSpymaster);
     renderControls();
     renderSettings();
     renderLog();
@@ -130,8 +141,16 @@ function render() {
   renderStatus();   // таймер обновляется каждую секунду
   handleSound(state);
 
+  // Звук отправки подсказки лидером: считаем подсказки в истории обеих команд;
+  // рост счётчика = лидер только что отправил слово. Сравниваем с прошлым кадром,
+  // чтобы звук был ровно в момент новой подсказки (повторные рендеры не дублируют).
+  const ch = state.clueHistory || { red: [], blue: [] };
+  const clueCount = (ch.red ? ch.red.length : 0) + (ch.blue ? ch.blue.length : 0);
+  if (prevClueCount !== undefined && clueCount > prevClueCount) soundClue();
+  prevClueCount = clueCount;
+
   prevHostId = state.hostId;
-  prevPhase = state.phase;
+  prevSpyInGame = spyInGame;
 }
 
 // ---------- Привязка событий ----------

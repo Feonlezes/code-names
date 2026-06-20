@@ -157,7 +157,7 @@ select.input {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 230px 1fr 230px;
+  grid-template-columns: 200px 1fr 200px;
   gap: 14px;
   /* Без горизонтальных полей: карточки команд прижаты вплотную к краям экрана
      (левая колонка — к левому краю, правая — к правому). align-items:center
@@ -177,7 +177,9 @@ select.input {
    контентом скроллится внутри себя. Прижата вплотную к краю экрана, поэтому
    скругление снимается с той стороны, что касается края (см. .team-red/.team-blue
    ниже) — у края бордер прямой. */
-.team-block { width: 100%; height: 100%; max-height: 600px; overflow-y: auto; border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--panel); display: flex; flex-direction: column; }
+.team-block { position: relative; width: 100%; height: 100%; max-height: 600px; overflow-y: auto; border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--panel); display: flex; flex-direction: column; }
+/* Весь реальный контент карточки — над фоновой цифрой (watermark лежит на z-index:0). */
+.team-block > *:not(.team-watermark) { position: relative; z-index: 1; }
 /* Красная — у левого края экрана: левый бордер прямой (скругление только справа),
    тонкая цветная полоса слева + лёгкая заливка в цвет команды. */
 .team-red { border-left: 2px solid #ff6450; background: rgba(255, 100, 80, 0.08); border-radius: 0 12px 12px 0; }
@@ -197,10 +199,23 @@ select.input {
   from { box-shadow: -10px 0 22px -6px rgba(80,187,255,.5), 0 0 10px rgba(80,187,255,.3); }
   to   { box-shadow: -22px 0 42px -4px rgba(80,187,255,.95), 0 0 22px rgba(80,187,255,.7); }
 }
-.team-header { display: flex; justify-content: space-between; font-weight: 700; margin-bottom: 8px; }
-.score { font-size: 22px; }
-.team-red .score { color: var(--red); }
-.team-blue .score { color: var(--blue); }
+/* Цифра оставшихся слов — крупным полупрозрачным фоном по центру карточки.
+   Лежит на z-index:0 под контентом (см. .team-block > *), не перехватывает клики
+   и не выделяется. Цвет — по команде. */
+.team-watermark {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 0;
+  font-size: 180px;
+  font-weight: 800;
+  line-height: 1;
+  opacity: 0.13;
+  pointer-events: none;
+  user-select: none;
+}
+.team-red .team-watermark { color: #ff6450; }
+.team-blue .team-watermark { color: #50bbff; }
 /* Ссылки-действия входа в роль («Стать капитаном» / «Войти в команду»):
    подчёркнутый текст, а не кнопка. Скрываются вне лобби (и «Стать капитаном»
    исчезает, когда ты уже капитан) — логику видимости задаёт teams.view. */
@@ -211,7 +226,7 @@ select.input {
 }
 .link-btn:hover { color: var(--text); }
 /* Разделительная черта между капитаном и угадывающими. */
-.team-divider { height: 1px; background: var(--border); margin: 10px 0; }
+.team-divider { height: 1px; background: #cccaca; margin: 10px 0; }
 .player-list { list-style: none; margin: 0; padding: 0; min-height: 8px; }
 .player-list li { padding: 4px 8px; border-radius: 6px; font-size: 14px; display:flex; justify-content:space-between; align-items:center; }
 .player-list li.you { font-weight: 600; }
@@ -223,11 +238,39 @@ select.input {
 .player-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 
 /* ---------- Подвал карточки команды: ввод подсказки, история, пропуск ---------- */
-.team-footer { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+/* Подвал в самом низу карточки: история выше прижата к низу (margin-top:auto),
+   а этот подвал с кнопкой пропуска идёт сразу под ней — то есть в самом низу. */
+.team-footer { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
 /* Поле ввода подсказки капитаном (task 7): слово + «+» одной строкой. */
-.clue-input-wrap { display: flex; gap: 6px; align-items: stretch; }
-.clue-input-wrap .clue-input { flex: 1; margin-top: 0; min-width: 0; }
-.clue-add { padding: 0 14px; font-size: 20px; line-height: 1; flex-shrink: 0; }
+/* Поле ввода живёт внизу блока истории (под списком слов) — небольшой отступ
+   отделяет его от последней подсказки/черты. */
+.clue-input-wrap { display: flex; gap: 6px; align-items: stretch; margin-top: 6px; }
+/* Без скругления рамки; цвет рамки — по команде (держим и при фокусе, не
+   сбрасываем в primary, чтобы поле всегда было в цвете своей команды). */
+.clue-input-wrap .clue-input { flex: 1; margin-top: 0; min-width: 0; border-radius: 0; font-size: 13px; padding: 3px 10px; }
+.team-red .clue-input, .team-red .clue-input:focus { border: 1px solid #ff6450; }
+.team-blue .clue-input, .team-blue .clue-input:focus { border: 1px solid #50bbff; }
+/* Кнопка «+» рядом с полем подсказки: без карточки-фона (убраны фон и рамка от
+   .btn/.btn-primary), серый жирный плюс, выровненный по центру высоты поля
+   (align-items:center при растянутой по высоте обёртке align-items:stretch). */
+.clue-add {
+  padding: 0 8px;
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Оптический центр глифа «+» сидит ниже геометрического центра строки, из-за
+     чего при flex-центрировании плюс визуально проседает — компенсируем сдвигом
+     вверх (transform не влияет на раскладку, фон прозрачный). */
+  transform: translateY(-2px);
+}
+.clue-add:hover { background: transparent; border-color: transparent; color: var(--text); }
 .clue-error { color: var(--red); font-size: 12px; margin: 0; min-height: 0; }
 .clue-error:empty { display: none; }
 /* История подсказок команды (task 4). Прижата к низу карточки (margin-top:auto в
@@ -236,7 +279,7 @@ select.input {
 .clue-history-wrap { margin-top: auto; }
 /* Вместо заголовка «История подсказок» — черта во всю ширину карточки (выходит
    за внутренние поля 12px отрицательными отступами), под ней появляются подсказки. */
-.clue-history-line { height: 1px; background: var(--border); margin: 8px -12px; }
+.clue-history-line { height: 1px; background: #cccaca; margin: 8px -12px; }
 .clue-history { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 160px; overflow-y: auto; }
 .clue-history li {
   display: flex; align-items: baseline; gap: 6px;
@@ -245,10 +288,15 @@ select.input {
 .clue-history .ch-word { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Число — сразу за словом, приглушённым цветом, без кружка-фона. */
 .clue-history .ch-num { flex-shrink: 0; color: var(--muted); font-weight: 700; font-size: 13px; }
-/* Кнопка «Пропустить ход» — голосование (task 1): подсветка при моём голосе,
-   кружки проголосовавших под ней и 2-сек лоадер при единогласии. */
-.skip-btn { width: 100%; }
-.skip-btn.voted { box-shadow: 0 0 0 2px var(--warning) inset; filter: brightness(1.1); }
+/* Кнопка «Пропустить ход» — голосование (task 1): простой текст без рамки и фона
+   (цвет #cccaca), кружки проголосовавших под ней и 2-сек лоадер при единогласии.
+   Мой голос подчёркиваем и подсвечиваем цветом текста. */
+.skip-btn {
+  width: 100%; background: none; border: none; padding: 4px 2px;
+  color: #cccaca; cursor: pointer; font-family: inherit; font-size: 13px;
+}
+.skip-btn:hover { color: var(--text); }
+.skip-btn.voted { color: var(--text); text-decoration: underline; }
 /* Кружки голосов под кнопкой пропуска — в обычном потоке (сбрасываем абсолютное
    позиционирование .vote-dots), по центру, могут переноситься. */
 .vote-dots-skip {
@@ -256,10 +304,24 @@ select.input {
   justify-content: center; pointer-events: auto;
 }
 .vote-dots-skip:empty { display: none; }
-.skip-loader { width: 100%; height: 8px; background: var(--bg-3); border-radius: 4px; overflow: hidden; }
-/* Полоса заполняется за 2 с — синхронно с VOTE_COUNTDOWN_MS на сервере. Анимация
-   проигрывается заново при каждом показе (display:none → block). */
-.skip-loader-bar { height: 100%; width: 0; background: var(--warning, #f5a623); border-radius: 4px; animation: voteLoad 2s linear forwards; }
+/* Кружки голосов за пропуск — без бордера и тени, только цвет игрока. */
+.vote-dots-skip .vote-dot { border: none; box-shadow: none; }
+/* Лоадер пропуска хода прижат к самой нижней рамке карточки команды и растянут во
+   всю её ширину. Позиционируется абсолютно относительно .team-block (left/right/
+   bottom:0 = края её padding-box, т. е. изнутри рамки), поэтому это прямой ребёнок
+   карточки, а не подвала (у подвала своя position:relative). Селектор `> .skip-loader`
+   перебивает общее правило `.team-block > *` (position:relative). Скругление снимаем —
+   края обрезает закруглённый угол карточки (overflow). */
+.team-block > .skip-loader {
+  position: absolute; left: 0; right: 0; bottom: 0; width: auto;
+  height: 8px; background: var(--bg-3); border-radius: 0; overflow: hidden; z-index: 2;
+}
+/* Полоса заполняется за 1.5 с — синхронно с VOTE_COUNTDOWN_MS на сервере. Анимация
+   проигрывается заново при каждом показе (display:none → block). Цвет — боковой
+   бордер команды. ease-out: быстрый старт, замедление к концу. */
+.skip-loader-bar { height: 100%; width: 0; background: var(--warning); border-radius: 0; animation: voteLoad 1.5s ease-out forwards; }
+.team-red .skip-loader-bar { background: #ff6450; }
+.team-blue .skip-loader-bar { background: #50bbff; }
 
 /* ---------- Main / board ---------- */
 /* height:100% — поле занимает всю высоту колонки (как карточки команд), а
@@ -289,10 +351,14 @@ select.input {
 /* ---------- Board (прямоугольные карты, grid с равными ячейками) ---------- */
 /* Обёртка центрирует поле по обеим осям в оставшейся высоте main. */
 .board-area { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
-/* Поле — CSS Grid, ограничено по ширине (910px) и высоте (600px).
-   Сетка N×N: равные колонки (1fr) и равные ряды (grid-auto-rows:1fr) гарантируют,
-   что ВСЕ карты одинакового размера независимо от длины слова и переносов —
-   иначе flex-перенос делал ряды разной высоты по содержимому. */
+/* Поле — CSS Grid, рамка ограничена 910×600. Сетка N×N: равные колонки (1fr) и
+   равные ряды (grid-auto-rows:1fr) гарантируют, что ВСЕ карты одинакового размера
+   независимо от длины слова и переносов — иначе flex-перенос делал ряды разной
+   высоты по содержимому.
+   Дополнительно размер самой карты ограничен сверху 158.03×96.02px (см. .cell):
+   ячейка тянется в своём 1fr-треке, но не выходит за этот потолок и центрируется
+   в треке, если тот шире/выше потолка. align-content:center центрирует ряды,
+   когда суммарная высота карт меньше 600. */
 .board {
   width: 100%;
   max-width: 910px;
@@ -302,7 +368,8 @@ select.input {
   display: grid;
   grid-auto-rows: 1fr;
   justify-content: center;
-  gap: 14px;
+  align-content: center;
+  gap: 24px;
 }
 /* Число колонок по размеру поля: 5 для 5×5, 6 для 6×6. */
 .board.size-5 { grid-template-columns: repeat(5, 1fr); }
@@ -315,6 +382,15 @@ select.input {
   /* min-width:0 — иначе grid-элемент с min-width:auto может раздуть колонку
      под длинное слово и сломать равенство ячеек. */
   min-width: 0;
+  /* Карта тянется в своём 1fr-треке (width/height:100%), но не превышает потолок
+     158.03×96.02px. Если трек шире/выше потолка — justify-self/align-self:center
+     центрируют карту в треке (равные зазоры), вместо растягивания за потолок. */
+  width: 100%;
+  height: 100%;
+  max-width: 158.03px;
+  max-height: 96.02px;
+  justify-self: center;
+  align-self: center;
   /* Базовый вид = невскрытая карта у угадывающего (цвет ему неизвестен): светлый
      бежевый фон + тёмный текст для контраста. Капитану и вскрытым картам фон
      переопределяют классы know-* / revealed. */
@@ -322,7 +398,7 @@ select.input {
   color: #3a332b;
   /* Единый бордер для всех карт во всех состояниях (know-revealed их не меняют). */
   border: 1px solid #ddd;
-  border-radius: 10px;
+  border-radius: 4px;
   display: flex; align-items: center; justify-content: center;
   text-align: center;
   padding: 2px 4px;
@@ -341,6 +417,25 @@ select.input {
 }
 .cell.clickable { cursor: pointer; }
 .cell.clickable:hover { transform: translateY(-2px); box-shadow: var(--shadow); border-color: var(--primary); }
+/* Мгновенная отдача нажатия у самого кликнувшего (видит, куда попал). */
+.cell.clickable:active { transform: scale(.93); }
+/* Эффект клика, видимый всей команде: расходящееся кольцо в момент, когда у карты
+   изменился набор проголосовавших (кто-то из команды только что кликнул, task 1).
+   Кольцом, а не transform — чтобы не конфликтовать с hover/spotlight. Цвет кольца —
+   ТЕКУЩИЙ фон самой карты (--pulse-color совпадает с background по состоянию карты,
+   см. ниже): у угадывающего это нейтральный фон, у капитана — цвет карты. К концу
+   анимации цвет уходит в прозрачность. */
+@keyframes votePulse {
+  0%   { box-shadow: 0 0 0 0 var(--pulse-color, rgba(222, 197, 179, 0.81)); }
+  100% { box-shadow: 0 0 0 20px transparent; }
+}
+.cell.vote-pulse { animation: votePulse .6s ease-out; }
+/* --pulse-color = фон карты в её текущем состоянии (vote-pulse только у неоткрытых). */
+.cell { --pulse-color: rgba(222, 197, 179, 0.81); }
+.cell.know-red     { --pulse-color: #ff6450; }
+.cell.know-blue    { --pulse-color: #50bbff; }
+.cell.know-neutral { --pulse-color: rgba(255, 254, 253, 0.81); }
+.cell.know-assassin{ --pulse-color: #444; }
 
 /* окраска для капитана (не открытые) — бордер общий (#ddd), меняем только фон/текст */
 .cell.know-red    { background: #ff6450; color: #8a1000; }
@@ -348,15 +443,17 @@ select.input {
 .cell.know-neutral{ background: rgba(255, 254, 253, 0.81); color: #737065; }
 .cell.know-assassin{ background: #444; color: #aaa; }
 
-/* Подсветка карт своего цвета у капитана при старте игры. Длительность чуть
-   увеличена (3.2 с), а яркая фаза держится дольше — эффект заметнее. */
-.cell.spotlight { animation: spotlight 3.2s ease-out 1; }
-@keyframes spotlight {
-  0%   { box-shadow: 0 0 0 0 rgba(255,255,255,0); filter: brightness(1); }
-  12%  { box-shadow: 0 0 22px 6px rgba(255,255,255,.85); filter: brightness(1.7); transform: scale(1.05); }
-  45%  { box-shadow: 0 0 18px 5px rgba(255,255,255,.6); filter: brightness(1.45); transform: scale(1.03); }
-  75%  { box-shadow: 0 0 12px 3px rgba(255,255,255,.35); filter: brightness(1.25); transform: scale(1.02); }
-  100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); filter: brightness(1); transform: scale(1); }
+/* Подсветка карт своего цвета у капитана при заходе за лидера: мягкое свечение
+   из рамок карты в её же цвет (красное/синее). Пульсирует ростом размытия по
+   краю (spread 0→6px) и обратно за счёт alternate: 8 итераций по 1с = 4 плавных
+   «вздоха». Цвет свечения зависит от команды капитана и задаётся через
+   --spot-color на классах know-red/know-blue (карты, видимые только капитану). */
+.cell.spotlight { animation: spotlight-pulse 1s 8 alternate ease-in-out; }
+.cell.spotlight.know-red  { --spot-color: #ff6450; }
+.cell.spotlight.know-blue { --spot-color: #50bbff; }
+@keyframes spotlight-pulse {
+  0%   { box-shadow: 0 0 20px 0px var(--spot-color); }
+  100% { box-shadow: 0 0 20px 6px var(--spot-color); }
 }
 
 /* открытые карты (все видят) — бордер общий (#ddd), задаём только фон/текст */
@@ -388,17 +485,19 @@ select.input {
 }
 .vote-dot {
   width: 13px; height: 13px; border-radius: 50%;
-  border: 2px solid rgba(0,0,0,.35);
   box-shadow: 0 0 4px rgba(0,0,0,.55);
 }
-/* Мой собственный голос обводим белым, чтобы было видно, за что голосую я. */
-.vote-dot.mine { border-color: #fff; }
-/* 2-сек лоадер снизу карты при единогласии (синхронно с VOTE_COUNTDOWN_MS). */
+/* 1.5-сек лоадер снизу карты при единогласии (синхронно с VOTE_COUNTDOWN_MS). */
+/* Лоадер прижат к самому низу карты во всю её ширину (касается нижней рамки),
+   без боковых отступов; квадратные углы обрезает overflow:hidden карты. */
 .cell-loader {
-  position: absolute; left: 6px; right: 6px; bottom: 5px;
-  height: 6px; background: rgba(0,0,0,.4); border-radius: 3px; overflow: hidden;
+  position: absolute; left: 0; right: 0; bottom: 0;
+  height: 6px; background: rgba(0,0,0,.4); border-radius: 0; overflow: hidden;
 }
-.cell-loader-bar { height: 100%; width: 0; background: #fff; border-radius: 3px; animation: voteLoad 2s linear forwards; }
+.cell-loader-bar { height: 100%; width: 0; background: #fff; border-radius: 3px; animation: voteLoad 1.5s ease-out forwards; }
+/* Цвет полосы лоадера выбора карты — боковой бордер текущей команды. */
+.board.turn-red  .cell-loader-bar { background: #ff6450; }
+.board.turn-blue .cell-loader-bar { background: #50bbff; }
 @keyframes voteLoad { from { width: 0; } to { width: 100%; } }
 
 /* ---------- Panels (settings/log в модалке) ---------- */
