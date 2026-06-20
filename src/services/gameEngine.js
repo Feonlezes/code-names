@@ -144,15 +144,16 @@ function finishGame(room, winner) {
  * Капитан текущей команды даёт подсказку «слово + число» и переводит игру в
  * фазу угадывания. Подсказка обязана быть ровно одним словом (без пробелов);
  * число — необязательная цифра-ориентир 0–9 (валидацию формата делает и клиент,
- * см. teams.view → parseClue). Подсказка дописывается в историю команды (room.clueHistory),
- * которая показывается в карточке команды. Молча игнорирует невалидные вызовы
- * (не та фаза/роль/команда, пустое или многословное слово) — сервер не доверяет
- * клиенту (§2.1).
+ * см. teams.view → parseClue). Если числа нет, в подсказку пишется null — клиент
+ * показывает его как «?». Подсказка дописывается в историю команды
+ * (room.clueHistory), которая показывается в карточке команды. Молча игнорирует
+ * невалидные вызовы (не та фаза/роль/команда, пустое или многословное слово) —
+ * сервер не доверяет клиенту (§2.1).
  *
  * @param {import('../core/model').Room} room
  * @param {import('../core/model').Player} player - отправитель
  * @param {string} word - слово-подсказка (ровно одно слово)
- * @param {(number|string)} number - цифра-ориентир 0–9 (необязательна)
+ * @param {(number|string|null)} number - цифра-ориентир 0–9 или null/отсутствует
  * @param {EngineCtx} ctx
  * @returns {void}
  */
@@ -163,13 +164,15 @@ function giveClue(room, player, word, number, ctx) {
   // Подсказка — строго одно слово: пробел внутри означает попытку ввести два
   // слова, такое отклоняем (валидация дублируется на клиенте для текста ошибки).
   if (!word || /\s/.test(word)) return;
-  let num = parseInt(number, 10);
-  if (isNaN(num) || num < 0 || num > 9) num = 0; // число — необязательный ориентир
+  // Число — необязательный ориентир 0–9. Если его нет (или оно невалидно),
+  // храним null — в истории/логе он покажется как «?».
+  let num = (number === null || number === undefined) ? null : parseInt(number, 10);
+  if (num !== null && (isNaN(num) || num < 0 || num > 9)) num = null;
   room.clue = { word, number: num };
   room.clueHistory[room.currentTeam].push({ word, number: num });
   room.phase = 'guess';
   room.timer = room.settings.answerTime;
-  addLog(room, `💡 Капитан ${teamName(room.currentTeam)}: «${word}» — ${num === 0 ? '∞' : num}`);
+  addLog(room, `💡 Капитан ${teamName(room.currentTeam)}: «${word}» — ${num === null ? '?' : num}`);
   armTimer(room, ctx);
 }
 

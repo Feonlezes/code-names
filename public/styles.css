@@ -23,11 +23,15 @@
 * { box-sizing: border-box; }
 html, body {
   margin: 0; padding: 0;
-  background: var(--bg);
   color: var(--text);
   font-family: "Segoe UI", Roboto, system-ui, sans-serif;
   height: 100%;
 }
+/* Фон держим только на html (не на body): тогда заливка победы (#win-flood,
+   z-index:-1 — позади всего UI) рисуется поверх корневого фона, но под
+   контентом body. Будь фон на body — он бы перекрыл слой с отрицательным
+   z-index, и заливки не было бы видно. */
+html { background: var(--bg); }
 
 .hidden { display: none !important; }
 .muted { color: var(--muted); }
@@ -155,11 +159,12 @@ select.input {
   display: grid;
   grid-template-columns: 230px 1fr 230px;
   gap: 14px;
-  /* Горизонтальные поля по краям: карточки команд «отклеены» от краёв и
-     центрируются в своих колонках. align-items:center выравнивает все три
-     колонки (команды + поле) по вертикали — они стоят на одном уровне. Нижний
-     отступ крупнее — резерв под фиксированную карточку таймера (#timer-bar). */
-  padding: 14px 14px 56px;
+  /* Без горизонтальных полей: карточки команд прижаты вплотную к краям экрана
+     (левая колонка — к левому краю, правая — к правому). align-items:center
+     выравнивает все три колонки (команды + поле) по вертикали — они стоят на
+     одном уровне. Нижний отступ крупнее — резерв под фиксированную карточку
+     таймера (#timer-bar). */
+  padding: 14px 0 56px;
   align-items: center;
   overflow: hidden;
 }
@@ -169,13 +174,16 @@ select.input {
 
 /* ---------- Teams ---------- */
 /* Карточка команды: высота 100% колонки, но не выше 600px; при переполнении
-   контентом скроллится внутри себя. Скруглена со всех сторон (центрирована,
-   а не приклеена к краю страницы). */
-.team-block { width: 100%; height: 100%; max-height: 600px; overflow-y: auto; border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--panel); }
-/* Карточки команд: тонкая цветная полоса слева + лёгкая заливка в цвет команды. */
-.team-red { border-left: 2px solid #ff6450; background: rgba(255, 100, 80, 0.08); }
-/* Синяя полоса — со стороны правого края страницы (правый бордер). */
-.team-blue { border-right: 2px solid #50bbff; background: rgba(80, 187, 255, 0.1); }
+   контентом скроллится внутри себя. Прижата вплотную к краю экрана, поэтому
+   скругление снимается с той стороны, что касается края (см. .team-red/.team-blue
+   ниже) — у края бордер прямой. */
+.team-block { width: 100%; height: 100%; max-height: 600px; overflow-y: auto; border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--panel); display: flex; flex-direction: column; }
+/* Красная — у левого края экрана: левый бордер прямой (скругление только справа),
+   тонкая цветная полоса слева + лёгкая заливка в цвет команды. */
+.team-red { border-left: 2px solid #ff6450; background: rgba(255, 100, 80, 0.08); border-radius: 0 12px 12px 0; }
+/* Синяя — у правого края экрана: правый бордер прямой (скругление только слева),
+   цветная полоса со стороны правого края (правый бордер). */
+.team-blue { border-right: 2px solid #50bbff; background: rgba(80, 187, 255, 0.1); border-radius: 12px 0 0 12px; }
 /* Неоновая подсветка карточки команды, чей сейчас ход (task 4). Свечение идёт от
    карточки к центру поля (красная — вправо, синяя — влево) и мягко пульсирует —
    именно оно, а не центральная плашка, показывает, чей ход. */
@@ -222,9 +230,13 @@ select.input {
 .clue-add { padding: 0 14px; font-size: 20px; line-height: 1; flex-shrink: 0; }
 .clue-error { color: var(--red); font-size: 12px; margin: 0; min-height: 0; }
 .clue-error:empty { display: none; }
-/* История подсказок команды (task 4). Без карточек-фона: слово, а сразу справа
-   от него — число-ориентир (task 2). */
-.clue-history-title { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+/* История подсказок команды (task 4). Прижата к низу карточки (margin-top:auto в
+   flex-колонке .team-block). Без карточек-фона: слово, а сразу справа от него —
+   число-ориентир (task 2). */
+.clue-history-wrap { margin-top: auto; }
+/* Вместо заголовка «История подсказок» — черта во всю ширину карточки (выходит
+   за внутренние поля 12px отрицательными отступами), под ней появляются подсказки. */
+.clue-history-line { height: 1px; background: var(--border); margin: 8px -12px; }
 .clue-history { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 160px; overflow-y: auto; }
 .clue-history li {
   display: flex; align-items: baseline; gap: 6px;
@@ -249,23 +261,19 @@ select.input {
    проигрывается заново при каждом показе (display:none → block). */
 .skip-loader-bar { height: 100%; width: 0; background: var(--warning, #f5a623); border-radius: 4px; animation: voteLoad 2s linear forwards; }
 
-/* ---------- Main / status ---------- */
+/* ---------- Main / board ---------- */
 /* height:100% — поле занимает всю высоту колонки (как карточки команд), а
    .board-area внутри центрирует его. */
 .main { display: flex; flex-direction: column; gap: 12px; min-height: 0; height: 100%; }
-.status-bar {
-  display: flex; justify-content: space-between; align-items: center;
-  background: var(--panel); border: 1px solid var(--border);
-  border-radius: 12px; padding: 10px 16px; flex-shrink: 0;
-}
-.status-text { font-size: 16px; font-weight: 600; padding: 4px 10px; border-radius: 8px; }
 .timer { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .timer.low { color: var(--red); animation: pulse 1s infinite; }
 @keyframes pulse { 50% { opacity: .4; } }
 
-/* Нижняя карточка таймера: приклеена к нижнему краю по центру, скруглены только
-   верхние углы (4px). Подпись «кто думает» + таймер + кнопка паузы. */
-.timer-bar {
+/* Нижняя карточка по центру (общий вид): приклеена к нижнему краю, скруглены
+   только верхние углы (4px). Используется и таймером (#timer-bar, в игре), и
+   кнопками управления (#game-controls, в лобби/после игры) — они не пересекаются
+   по фазам. */
+.bottom-bar {
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
   z-index: 40;
   display: flex; align-items: center; gap: 12px;
@@ -274,6 +282,8 @@ select.input {
   padding: 8px 16px;
   box-shadow: var(--shadow);
 }
+/* Кнопки управления в нижней карточке могут переноситься (в фазе over их до трёх). */
+.game-controls { flex-wrap: wrap; justify-content: center; }
 .turn-label { color: var(--muted); font-size: 14px; font-weight: 600; white-space: nowrap; }
 
 /* ---------- Board (прямоугольные карты, grid с равными ячейками) ---------- */
@@ -391,9 +401,6 @@ select.input {
 .cell-loader-bar { height: 100%; width: 0; background: #fff; border-radius: 3px; animation: voteLoad 2s linear forwards; }
 @keyframes voteLoad { from { width: 0; } to { width: 100%; } }
 
-/* ---------- Controls ---------- */
-.game-controls { display: flex; gap: 10px; justify-content: center; flex-shrink: 0; flex-wrap: wrap; }
-
 /* ---------- Panels (settings/log в модалке) ---------- */
 .panel { background: var(--bg-2); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
 .panel h4 { margin: 0 0 10px; font-size: 15px; }
@@ -419,27 +426,31 @@ select.input {
 .modal-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
 /* ---------- Заливка цветом победителя (task 2) ---------- */
-/* Полноэкранный слой поверх поля; не ловит клики, чтобы кнопки оставались
-   доступны. Цвет команды приходит через CSS-переменную --win-color из JS. */
+/* Полноэкранный слой ПОЗАДИ всего UI (z-index:-1): рисуется поверх корневого
+   фона html, но под контентом body — не перекрывает элементы. Кликов всё равно
+   не ловит. Цвет и сторона команды приходят через CSS-переменные из JS:
+   --win-color (цвет команды) и --win-dir (сторона линейного градиента). */
 .win-flood {
-  position: fixed; inset: 0; z-index: 60; pointer-events: none;
+  position: fixed; inset: 0; z-index: -1; pointer-events: none;
   overflow: hidden;
 }
-/* Круг из центра «разливается» до полэкрана и в конце гаснет. vmax-радиус
-   гарантирует охват ~половины экрана на пике независимо от ориентации. */
-.win-flood-burst {
-  position: absolute; left: 50%; top: 50%;
-  width: 120vmax; height: 120vmax;
-  transform: translate(-50%, -50%) scale(0);
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--win-color, #fff) 0%, var(--win-color, #fff) 35%, transparent 70%);
-  animation: winFlood 2.6s ease-out forwards;
+/* Линейный градиент во всю ширину: насыщенный цвет команды (--win-color) у её
+   края экрана плавно затухает в прозрачность к противоположному концу страницы.
+   --win-dir задаёт сторону: синие справа → «to right» (цвет у 100% = правый
+   край), красные слева → «to left» (цвет у 100% = левый край). Затухание идёт в
+   transparent (альфа 0): при premultiplied-интерполяции прозрачный конец не
+   подмешивает свой цвет, поэтому ореол чистый и сливается с фоном --bg.
+   Образец цвета синих: linear-gradient(to right, #20202000 0%, #043a5d 100%). */
+.win-flood-wash {
+  position: absolute; inset: 0;
+  background: linear-gradient(var(--win-dir, to right),
+    transparent 0%,
+    var(--win-color, #043a5d) 100%);
+  animation: winWashIn 1s ease-out;
 }
-@keyframes winFlood {
-  0%   { transform: translate(-50%, -50%) scale(0);    opacity: 0; }
-  20%  {                                               opacity: .92; }
-  55%  { transform: translate(-50%, -50%) scale(.55);  opacity: .8; }
-  100% { transform: translate(-50%, -50%) scale(.85);  opacity: 0; }
+@keyframes winWashIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 /* ---------- Toasts (уведомления) ---------- */
@@ -472,7 +483,10 @@ select.input {
   .game-layout { grid-template-columns: 1fr; align-items: stretch; overflow: visible; }
   /* В одну колонку: карточки и поле занимают естественную высоту, без 600px-кэпа. */
   .sidebar { height: auto; }
+  /* В одну колонку карточка касается обоих краёв экрана — бордер прямой со всех
+     сторон (общие угловые точки нельзя скруглить, не «отклеив» бок от края). */
   .team-block { height: auto; max-height: none; }
+  .team-red, .team-blue { border-radius: 0; }
   .board-area { display: block; }
   .board { height: auto; max-height: none; min-height: 60vh; }
   .modal-cols { grid-template-columns: 1fr; }
