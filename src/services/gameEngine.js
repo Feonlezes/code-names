@@ -84,6 +84,7 @@ function startGame(room, words, ctx) {
   room.clue = null;
   room.clueHistory = { red: [], blue: [] };
   resetVotes(room);
+  resetMarks(room);
   room.timer = room.settings.firstMoveTime;
   room.paused = false;
   room.winner = null;
@@ -105,6 +106,7 @@ function endTurn(room, ctx) {
   room.phase = 'clue';
   room.clue = null;
   resetVotes(room); // новый ход — голоса прошлой команды сбрасываем
+  resetMarks(room); // и клики: ожидающей теперь становится другая команда (task 5)
   room.timer = room.settings.firstMoveTime;
   armTimer(room, ctx);
 }
@@ -136,6 +138,7 @@ function finishGame(room, winner) {
   room.phase = 'over';
   timer.clearTimer(room);
   resetVotes(room);
+  resetMarks(room);
   addLog(room, `🏆 Победа команды ${teamName(winner)}!`);
   return true;
 }
@@ -348,6 +351,87 @@ function applyVote(room, ctx) {
   ctx.broadcast(room);
 }
 
+// ---------- Клики ожидающей команды (task 5) ----------
+
+/**
+ * Полностью очищает клики обеих команд. Вызывается при смене хода, старте/конце
+ * партии и возврате в лобби: после перехода хода ожидающей становится другая
+ * команда, прежние «хотелки» теряют смысл. Мутирует комнату.
+ *
+ * @param {import('../core/model').Room} room
+ * @returns {void}
+ */
+function resetMarks(room) {
+  room.marks = { red: {}, blue: {} };
+}
+
+/**
+ * Убирает клики по конкретной карте у ОБЕИХ команд. Вызывается при открытии
+ * карты: помеченной картой больше не «хотят» — она уже вскрыта. Мутирует
+ * room.marks.
+ *
+ * @param {import('../core/model').Room} room
+ * @param {number} index - индекс открытой карты
+ * @returns {void}
+ */
+function clearCardMarks(room, index) {
+  delete room.marks.red[index];
+  delete room.marks.blue[index];
+}
+
+/**
+ * Клик агента ОЖИДАЮЩЕЙ команды по карте (повторный клик по той же карте его
+ * снимает). Это не ход и не голос: карта не открывается, состояние игры не
+ * меняется — клик лишь виден своей команде (кружок + звук + пульс, как обычный
+ * клик) и показывает, какое слово команда хочет открыть следующим. Выбор
+ * эксклюзивен: один игрок — одна карта. Видимость только своей команде
+ * обеспечивает сериализатор. Молча игнорирует невалидные вызовы (не активная
+ * фаза, пауза, наблюдатель, своя очередь хода, капитан, открытая/несуществующая
+ * карта) — сервер не доверяет клиенту (§2.1).
+ *
+ * @param {import('../core/model').Room} room
+ * @param {import('../core/model').Player} player - отправитель
+ * @param {number} index - индекс карты на поле
+ * @returns {void}
+ */
+function markCard(room, player, index) {
+  if (room.phase !== 'clue' && room.phase !== 'guess') return;
+  if (room.paused) return;
+  // Кликать может только агент команды, чьего хода сейчас НЕТ (ожидающая команда).
+  if (player.team !== 'red' && player.team !== 'blue') return;
+  if (player.team === room.currentTeam) return;
+  if (player.role !== 'operative') return;
+  const card = room.board[index];
+  if (!card || card.revealed) return;
+  const teamMarks = room.marks[player.team];
+  const had = (teamMarks[index] || []).includes(player.id);
+  // Эксклюзивно: снимаем прежний клик игрока со всех карт его команды.
+  for (const idx of Object.keys(teamMarks)) {
+    const left = teamMarks[idx].filter(id => id !== player.id);
+    if (left.length) teamMarks[idx] = left; else delete teamMarks[idx];
+  }
+  // Повторный клик по той же карте только снимает (had → не добавляем заново).
+  if (!had) (teamMarks[index] = teamMarks[index] || []).push(player.id);
+}
+
+/**
+ * Убирает клики ушедшего/отключившегося игрока из обеих команд, чтобы его кружок
+ * не «завис» на карте. Применимо в любой фазе; рассылку делает вызывающий.
+ *
+ * @param {import('../core/model').Room} room
+ * @param {string} playerId
+ * @returns {void}
+ */
+function removePlayerMarks(room, playerId) {
+  for (const team of ['red', 'blue']) {
+    const m = room.marks[team];
+    for (const idx of Object.keys(m)) {
+      const left = m[idx].filter(id => id !== playerId);
+      if (left.length) m[idx] = left; else delete m[idx];
+    }
+  }
+}
+
 /**
  * Открывает карту по индексу и применяет последствия по правилам: убийца —
  * мгновенное поражение; своя карта — команда продолжает угадывать (с бонусом
@@ -364,6 +448,7 @@ function revealCard(room, index, ctx) {
   const card = room.board[index];
   if (!card || card.revealed) return;
   card.revealed = true;
+  clearCardMarks(room, index); // вскрытую карту больше не «хотят» — снимаем клики
   addLog(room, `👉 Команда ${teamName(room.currentTeam)} открыла «${card.word}»`);
 
   if (card.color === 'assassin') {
@@ -428,6 +513,7 @@ function resumeGame(room, ctx) {
 function returnToLobby(room) {
   timer.clearTimer(room);
   resetVotes(room);
+  resetMarks(room);
   room.phase = 'lobby';
   room.board = [];
   room.clue = null;
@@ -436,6 +522,7 @@ function returnToLobby(room) {
 }
 
 module.exports = {
-  startGame, giveClue, voteCard, voteSkip, handleVoterGone, endTurn,
-  checkWin, finishGame, pauseGame, resumeGame, returnToLobby
+  startGame, giveClue, voteCard, voteSkip, handleVoterGone, markCard,
+  removePlayerMarks, endTurn, checkWin, finishGame, pauseGame, resumeGame,
+  returnToLobby
 };

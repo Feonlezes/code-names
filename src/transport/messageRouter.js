@@ -152,6 +152,11 @@ function handleMessage(ws, data) {
       // task 1: «Пропустить ход» — тоже голос; ход перейдёт по единогласию агентов.
       gameEngine.voteSkip(room, player, ctx);
       break;
+    case IN.MARK_CARD:
+      // task 5: клик ОЖИДАЮЩЕЙ команды по карте — не открывает её, виден только
+      // своей команде (см. gameEngine.markCard и фильтр в serializer).
+      gameEngine.markCard(room, player, msg.index);
+      break;
     case IN.PAUSE:
       if (room.phase === 'clue' || room.phase === 'guess') {
         gameEngine.pauseGame(room);
@@ -188,6 +193,7 @@ function handleLeave(ws, room) {
   roomService.removePlayer(room, ws.playerId);
   // Снять «зависший» голос ушедшего и пересчитать единогласие (task 1).
   gameEngine.handleVoterGone(room, ws.playerId, ctx);
+  gameEngine.removePlayerMarks(room, ws.playerId); // и его клики ожидания (task 5)
   ws.roomCode = null;
   broadcast(room);
   roomService.maybeCleanup(room);
@@ -215,6 +221,7 @@ function handleClose(ws) {
   roomService.disconnectPlayer(room, ws.playerId);
   // Отключившийся больше не «голосует» — убираем его голос и пересчитываем (task 1).
   gameEngine.handleVoterGone(room, ws.playerId, ctx);
+  gameEngine.removePlayerMarks(room, ws.playerId); // и снимаем его клики ожидания (task 5)
   broadcast(room);
   roomService.maybeCleanup(room);
 }

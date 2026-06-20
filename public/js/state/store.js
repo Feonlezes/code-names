@@ -36,6 +36,9 @@ export function structuralSig() {
     // исчезали при изменении голосования (таймер по-прежнему вне сигнатуры).
     votes: state.votes,
     pendingVote: state.pendingVote,
+    // Клики ожидающей команды (task 5) — чтобы кружки появлялись/исчезали при
+    // изменении (как и голоса; таймер по-прежнему вне сигнатуры).
+    marks: state.marks,
     paused: state.paused,
     winner: state.winner,
     host: state.hostId,

@@ -48,6 +48,9 @@ function stateFor(room, playerId) {
     // кружки проголосовавших и лоадер. Секретов не раскрывают (только id игроков).
     votes: room.votes,
     pendingVote: room.pendingVote,
+    // Клики ожидающей команды (task 5) — отдаём ТОЛЬКО клики команды игрока, чтобы
+    // соперник не видел, какие слова та хочет открыть. Наблюдателю — пусто.
+    marks: (me && (me.team === 'red' || me.team === 'blue')) ? room.marks[me.team] : {},
     timer: room.timer,
     paused: room.paused,
     winner: room.winner,

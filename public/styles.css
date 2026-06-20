@@ -487,6 +487,15 @@ select.input {
   width: 13px; height: 13px; border-radius: 50%;
   box-shadow: 0 0 4px rgba(0,0,0,.55);
 }
+/* Клики ожидающей команды (task 5) — те же кружки .vote-dot, но в нижне-левом
+   углу карты, чтобы не накладываться на голоса соперника (.vote-dots, верх-право). */
+.mark-dots {
+  position: absolute; bottom: 4px; left: 4px;
+  display: flex; flex-wrap: wrap; gap: 3px; justify-content: flex-start;
+  max-width: 75%; pointer-events: none;
+}
+/* Свой клик слегка выделяем белым ободком (как ориентир «это я»). */
+.mark-dots .vote-dot.mine { box-shadow: 0 0 0 2px #fff, 0 0 4px rgba(0,0,0,.55); }
 /* 1.5-сек лоадер снизу карты при единогласии (синхронно с VOTE_COUNTDOWN_MS). */
 /* Лоадер прижат к самому низу карты во всю её ширину (касается нижней рамки),
    без боковых отступов; квадратные углы обрезает overflow:hidden карты. */
