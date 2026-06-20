@@ -171,8 +171,8 @@ function bindEvents() {
   $('#start-btn').addEventListener('click', () => send({ type: IN.START_GAME, words: WORDS }));
   $('#newgame-btn').addEventListener('click', () => send({ type: IN.NEW_GAME, words: WORDS }));
   $('#lobby-btn').addEventListener('click', () => send({ type: IN.BACK_TO_LOBBY }));
-  $('#pause-btn').addEventListener('click', () => send({ type: IN.PAUSE }));
-  $('#resume-btn').addEventListener('click', () => send({ type: IN.RESUME }));
+  // Одна кнопка паузы-переключателя: шлёт RESUME, если уже на паузе, иначе PAUSE.
+  $('#pause-btn').addEventListener('click', () => send({ type: getState().paused ? IN.RESUME : IN.PAUSE }));
   $('#shuffle-btn').addEventListener('click', () => send({ type: IN.SHUFFLE_TEAMS }));
   $('#save-settings').addEventListener('click', () => send({ type: IN.UPDATE_SETTINGS, settings: readSettingsForm() }));
   // Перезапуск партии из модалки настроек — та же логика, что «Новая игра».
@@ -194,9 +194,6 @@ function bindEvents() {
   // leave/logout modal
   $('#leave-cancel').addEventListener('click', () => $('#leave-modal').classList.add('hidden'));
   $('#leave-confirm').addEventListener('click', logout);
-
-  // win banner
-  $('#win-close').addEventListener('click', () => $('#win-banner').classList.add('hidden'));
 
   // Закрытие модалок кликом вне их области (по затемнённому фону). Срабатывает
   // только если клик пришёлся на сам оверлей, а не на его содержимое (modal-box).
