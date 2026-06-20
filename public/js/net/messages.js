@@ -19,6 +19,7 @@ export const IN = {
   GIVE_CLUE: 'giveClue',
   GUESS: 'guess',
   END_TURN: 'endTurn',
+  MARK_CARD: 'markCard',
   PAUSE: 'pause',
   RESUME: 'resume',
   SHUFFLE_TEAMS: 'shuffleTeams',

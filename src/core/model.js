@@ -25,6 +25,10 @@
  * @property {('guess'|'skip')} kind - что назрело: открыть карту или пропустить ход
  * @property {(number|null)} index - индекс карты для kind==='guess' (иначе null)
  *
+ * @typedef {Object} Marks
+ * @property {Object<number, Array<string>>} red - индекс карты → id агентов красных, отметивших её
+ * @property {Object<number, Array<string>>} blue - то же для синих
+ *
  * @typedef {Object} Room
  * @property {string} code
  * @property {string} hostId
@@ -34,6 +38,7 @@
  * @property {Array<Card>} board
  * @property {Votes} votes - текущие голоса агентов в фазе угадывания (task 1)
  * @property {(PendingVote|null)} pendingVote - идёт ли 2-сек отсчёт единогласия
+ * @property {Marks} marks - отметки «хотим это слово» от ОЖИДАЮЩЕЙ команды (task 5)
  * @property {Set<*>} _sockets   - внутреннее: активные сокеты (не сериализуется)
  * @property {*} _interval        - внутреннее: дескриптор таймера (не сериализуется)
  * @property {*} _voteTimeout     - внутреннее: дескриптор отсчёта голосования (не сериализуется)
@@ -71,6 +76,11 @@ function createRoomObject(code, hostId, settings) {
     // (pendingVote), по завершении которого действие применяется.
     votes: { cards: {}, skip: [] }, // cards: { индекс -> [id агентов] }
     pendingVote: null,              // { kind:'guess'|'skip', index } во время отсчёта
+    // Отметки ожидающей команды (task 5): пока соперник ходит, агенты команды,
+    // чьего хода сейчас НЕТ, кликами помечают карты, которые хотят открыть следующими.
+    // Видны только своей команде (фильтрует сериализатор). { индекс -> [id агентов] }
+    // на каждую команду; выбор эксклюзивен (один игрок — одна отметка).
+    marks: { red: {}, blue: {} },
     timer: 0,
     paused: false,
     winner: null,
