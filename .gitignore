@@ -1,0 +1,16 @@
+# Зависимости
+node_modules/
+
+# Логи
+*.log
+npm-debug.log*
+
+# Окружение
+.env
+.env.local
+
+# Редакторы / IDE
+.idea/
+.vscode/
+*.swp
+.DS_Store

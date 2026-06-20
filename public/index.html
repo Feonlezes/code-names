@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Codenames — онлайн</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Экран входа -->
+  <div id="screen-login" class="screen active">
+    <div class="card-box">
+      <h1>🕵️ Codenames</h1>
+      <p class="muted">Введите никнейм, чтобы начать</p>
+      <input id="login-nick" class="input" type="text" maxlength="20" placeholder="Ваш никнейм" autocomplete="off">
+      <button id="login-btn" class="btn btn-primary btn-block">Войти</button>
+    </div>
+  </div>
+
+  <!-- Экран меню -->
+  <div id="screen-home" class="screen">
+    <div class="topbar">
+      <div class="brand">🕵️ Codenames</div>
+      <div class="topbar-right">
+        <span class="nick-wrap">
+          <span class="nick-chip">
+            <span class="nick-label">Никнейм:</span>
+            <span id="home-nick"></span>
+            <button id="home-edit-nick" class="btn btn-ghost btn-xs" title="Сменить никнейм">✎</button>
+          </span>
+        </span>
+      </div>
+    </div>
+    <div class="card-box">
+      <h2>Играть с друзьями</h2>
+      <button id="create-room-btn" class="btn btn-primary btn-block">Создать комнату</button>
+      <div class="divider"><span>или</span></div>
+      <div class="row">
+        <input id="join-code" class="input" type="text" maxlength="4" placeholder="КОД" style="text-transform:uppercase">
+        <button id="join-room-btn" class="btn btn-secondary">Войти</button>
+      </div>
+      <p id="home-error" class="error"></p>
+    </div>
+  </div>
+
+  <!-- Экран комнаты/игры -->
+  <div id="screen-room" class="screen">
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="brand">🕵️ Codenames</div>
+        <span class="obs-chip hidden" id="observers">
+          <span class="obs-label">Наблюдатели:</span>
+          <span id="observers-list"></span>
+        </span>
+      </div>
+      <div class="topbar-right">
+        <span class="code-chip">Комната: <b id="room-code"></b>
+          <button id="copy-link" class="btn btn-ghost btn-xs" title="Скопировать ссылку-приглашение">🔗</button>
+        </span>
+        <button id="settings-gear" class="chip-btn" title="Настройки и события">⚙️ Настроить игру</button>
+        <span class="nick-wrap">
+          <span class="nick-chip">
+            <span class="nick-label">Никнейм:</span>
+            <span id="room-nick"></span>
+            <button id="room-edit-nick" class="btn btn-ghost btn-xs" title="Сменить никнейм">✎</button>
+          </span>
+        </span>
+        <button id="leave-btn" class="btn btn-sm btn-danger" title="Выйти из аккаунта">🚪 Выйти</button>
+      </div>
+    </div>
+
+    <div class="game-layout">
+      <!-- Левая команда: красные -->
+      <aside class="sidebar sidebar-left">
+        <div class="team-block team-red">
+          <div class="team-header">
+            <span>🔴 Красные</span>
+            <span class="score hidden" id="score-red">—</span>
+          </div>
+          <div class="team-section">
+            <button class="link-btn btn-team" data-team="red" data-role="spymaster" id="red-join-spymaster">Стать капитаном</button>
+            <ul class="player-list" id="red-spymasters"></ul>
+            <div class="team-divider"></div>
+            <ul class="player-list" id="red-operatives"></ul>
+            <button class="link-btn btn-team" data-team="red" data-role="operative" id="red-join-operative">Войти в команду</button>
+          </div>
+          <!-- Подвал карточки: ввод подсказки (капитан), история подсказок и
+               кнопка пропуска хода — управляются teams.view. -->
+          <div class="team-footer">
+            <div class="clue-input-wrap hidden" id="red-clue-input-wrap">
+              <input class="input clue-input" id="red-clue-input" type="text" maxlength="40" placeholder="слово 3" autocomplete="off">
+              <button class="btn btn-primary clue-add" id="red-clue-add" title="Дать подсказку">+</button>
+            </div>
+            <p class="clue-error" id="red-clue-error"></p>
+            <div class="clue-history-wrap hidden" id="red-clue-history-wrap">
+              <div class="clue-history-title">История подсказок</div>
+              <ul class="clue-history" id="red-clue-history"></ul>
+            </div>
+            <button class="btn btn-warning btn-sm skip-btn hidden" id="red-skip-btn" data-team="red">⏭ Пропустить ход</button>
+            <div class="skip-loader hidden" id="red-skip-loader"><div class="skip-loader-bar" id="red-skip-loader-bar"></div></div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Центр: поле -->
+      <main class="main">
+        <div class="status-bar">
+          <div id="status-text" class="status-text">Лобби</div>
+          <div class="status-right">
+            <div id="timer" class="timer hidden">⏱ <span id="timer-val">0</span></div>
+            <button id="pause-btn" class="btn btn-ghost btn-sm hidden">⏸ Пауза</button>
+            <button id="resume-btn" class="btn btn-warning btn-sm hidden">▶️ Продолжить</button>
+          </div>
+        </div>
+
+        <div id="clue-bar" class="clue-bar hidden"></div>
+
+        <div id="board" class="board"></div>
+
+        <div class="game-controls">
+          <button id="shuffle-btn" class="btn btn-secondary hidden">🔀 Перемешать команды</button>
+          <button id="start-btn" class="btn btn-primary hidden">▶️ Начать игру</button>
+          <button id="newgame-btn" class="btn btn-primary hidden">🔄 Новая игра</button>
+          <button id="lobby-btn" class="btn btn-secondary hidden">↩️ В лобби</button>
+        </div>
+      </main>
+
+      <!-- Правая команда: синие -->
+      <aside class="sidebar sidebar-right">
+        <div class="team-block team-blue">
+          <div class="team-header">
+            <span>🔵 Синие</span>
+            <span class="score hidden" id="score-blue">—</span>
+          </div>
+          <div class="team-section">
+            <button class="link-btn btn-team" data-team="blue" data-role="spymaster" id="blue-join-spymaster">Стать капитаном</button>
+            <ul class="player-list" id="blue-spymasters"></ul>
+            <div class="team-divider"></div>
+            <ul class="player-list" id="blue-operatives"></ul>
+            <button class="link-btn btn-team" data-team="blue" data-role="operative" id="blue-join-operative">Войти в команду</button>
+          </div>
+          <!-- Подвал карточки: ввод подсказки (капитан), история подсказок и
+               кнопка пропуска хода — управляются teams.view. -->
+          <div class="team-footer">
+            <div class="clue-input-wrap hidden" id="blue-clue-input-wrap">
+              <input class="input clue-input" id="blue-clue-input" type="text" maxlength="40" placeholder="слово 3" autocomplete="off">
+              <button class="btn btn-primary clue-add" id="blue-clue-add" title="Дать подсказку">+</button>
+            </div>
+            <p class="clue-error" id="blue-clue-error"></p>
+            <div class="clue-history-wrap hidden" id="blue-clue-history-wrap">
+              <div class="clue-history-title">История подсказок</div>
+              <ul class="clue-history" id="blue-clue-history"></ul>
+            </div>
+            <button class="btn btn-warning btn-sm skip-btn hidden" id="blue-skip-btn" data-team="blue">⏭ Пропустить ход</button>
+            <div class="skip-loader hidden" id="blue-skip-loader"><div class="skip-loader-bar" id="blue-skip-loader-bar"></div></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Модалка: настройки + события -->
+  <div id="settings-modal" class="modal hidden">
+    <div class="modal-box modal-wide">
+      <div class="modal-head">
+        <h3>⚙️ Настройки и события</h3>
+        <button id="settings-close" class="btn btn-ghost btn-sm">✕</button>
+      </div>
+      <div class="modal-cols">
+        <div class="panel">
+          <h4>Настройки <span id="settings-host-note" class="muted-tiny"></span></h4>
+          <label class="field">
+            <span>Размер поля</span>
+            <select id="set-size" class="input">
+              <option value="5">5 × 5</option>
+              <option value="6">6 × 6</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Время первого хода (сек)</span>
+            <input id="set-first" class="input" type="number" min="10" max="999">
+          </label>
+          <label class="field">
+            <span>Время ответа (сек)</span>
+            <input id="set-answer" class="input" type="number" min="10" max="999">
+          </label>
+          <label class="field">
+            <span>Доп. время за верный ответ (сек)</span>
+            <input id="set-extra" class="input" type="number" min="0" max="999">
+          </label>
+          <button id="save-settings" class="btn btn-secondary btn-block">Сохранить настройки</button>
+          <button id="restart-game" class="btn btn-warning btn-block">🔄 Перезапустить игру</button>
+        </div>
+        <div class="panel log-panel">
+          <h4>📜 События</h4>
+          <ul id="log" class="log"></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Модалка смены ника -->
+  <div id="nick-modal" class="modal hidden">
+    <div class="modal-box">
+      <h3>Сменить никнейм</h3>
+      <input id="nick-input" class="input" type="text" maxlength="20" placeholder="Новый никнейм">
+      <div class="modal-actions">
+        <button id="nick-cancel" class="btn btn-ghost">Отмена</button>
+        <button id="nick-save" class="btn btn-primary">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Модалка подтверждения выхода -->
+  <div id="leave-modal" class="modal hidden">
+    <div class="modal-box">
+      <h3>Выход из аккаунта</h3>
+      <p class="muted">Вы уверены, что хотите выйти? Вы покинете комнату, а никнейм будет сброшен.</p>
+      <div class="modal-actions">
+        <button id="leave-cancel" class="btn btn-ghost">Отмена</button>
+        <button id="leave-confirm" class="btn btn-warning">Выйти</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Контейнер уведомлений (тосты) -->
+  <div id="toasts" class="toasts"></div>
+
+  <!-- Баннер победы -->
+  <div id="win-banner" class="modal hidden">
+    <div class="modal-box win-box">
+      <h2 id="win-text"></h2>
+      <button id="win-close" class="btn btn-primary">Ок</button>
+    </div>
+  </div>
+
+  <script src="words.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

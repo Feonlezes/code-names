@@ -1,0 +1,60 @@
+'use strict';
+
+/**
+ * @module state/store
+ * Единое хранилище последнего состояния от сервера и его производных. Клиент
+ * не держит игровую логику — всё это снимок (см. CLAUDE.md §2.6).
+ * Экспорт: getState, setState, me, structuralSig, sigChanged, resetSig.
+ */
+
+let state = null;     // последнее состояние от сервера
+let lastSig = '';     // сигнатура «структурных» данных (для частичного рендера)
+
+/** @returns {Object|null} текущее состояние */
+export function getState() { return state; }
+
+/** Сохраняет новое состояние. @param {Object} s @returns {void} */
+export function setState(s) { state = s; }
+
+/** @returns {Object|undefined} запись текущего игрока в state.players */
+export function me() { return state.players.find(p => p.id === state.you); }
+
+/**
+ * Сигнатура «структурных» данных — без таймера, чтобы посекундный тик не
+ * перерисовывал поле ввода подсказки (иначе с него слетает фокус каждую секунду).
+ * @returns {string}
+ */
+export function structuralSig() {
+  return JSON.stringify({
+    phase: state.phase,
+    cur: state.currentTeam,
+    clue: state.clue,
+    // Длины историй подсказок — чтобы карточки команд перерисовывались при
+    // появлении новой подсказки (таймер по-прежнему вне сигнатуры).
+    clueHist: state.clueHistory ? [state.clueHistory.red.length, state.clueHistory.blue.length] : null,
+    paused: state.paused,
+    winner: state.winner,
+    host: state.hostId,
+    you: state.you,
+    settings: state.settings,
+    players: state.players,
+    board: state.board,
+    remaining: state.remaining,
+    logLen: state.log.length,
+    logLast: state.log.length ? state.log[state.log.length - 1].text : ''
+  });
+}
+
+/**
+ * Сравнивает текущую структурную сигнатуру с предыдущей; при изменении
+ * запоминает новую и возвращает true (значит, нужен полный перерендер).
+ * @returns {boolean}
+ */
+export function sigChanged() {
+  const sig = structuralSig();
+  if (sig !== lastSig) { lastSig = sig; return true; }
+  return false;
+}
+
+/** Сбрасывает сигнатуру, чтобы следующий рендер был полным. @returns {void} */
+export function resetSig() { lastSig = ''; }

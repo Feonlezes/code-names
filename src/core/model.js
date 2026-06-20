@@ -1,0 +1,104 @@
+'use strict';
+
+/**
+ * @module core/model
+ * Фабрики и чистые помощники для доменной модели комнаты. Не выполняет I/O,
+ * не знает про WebSocket. Экспорт: createRoomObject, addLog, teamName, teamCounts.
+ *
+ * @typedef {Object} Player
+ * @property {string} id
+ * @property {string} nickname
+ * @property {('red'|'blue'|null)} team - null = наблюдатель (не выбрал команду)
+ * @property {('spymaster'|'operative')} role
+ * @property {boolean} connected
+ *
+ * @typedef {Object} Card
+ * @property {string} word
+ * @property {('red'|'blue'|'neutral'|'assassin')} color
+ * @property {boolean} revealed
+ *
+ * @typedef {Object} Room
+ * @property {string} code
+ * @property {string} hostId
+ * @property {Object<string, Player>} players
+ * @property {Object} settings
+ * @property {('lobby'|'clue'|'guess'|'over')} phase
+ * @property {Array<Card>} board
+ * @property {Set<*>} _sockets   - внутреннее: активные сокеты (не сериализуется)
+ * @property {*} _interval        - внутреннее: дескриптор таймера (не сериализуется)
+ */
+
+const { DEFAULT_SETTINGS } = require('../config');
+
+/**
+ * Создаёт чистый объект комнаты со стартовым (лобби) состоянием.
+ * Поля с префиксом `_` — внутренние ресурсы и никогда не уходят клиенту
+ * (см. CLAUDE.md §2.3).
+ *
+ * @param {string} code - уникальный код комнаты
+ * @param {string} hostId - id игрока-хоста
+ * @param {Object} [settings] - переопределения настроек поверх DEFAULT_SETTINGS
+ * @returns {Room} новая комната
+ */
+function createRoomObject(code, hostId, settings) {
+  return {
+    code,
+    hostId,
+    players: {}, // id -> Player
+    settings: Object.assign({}, DEFAULT_SETTINGS, settings || {}),
+    phase: 'lobby', // lobby | clue | guess | over
+    board: [],
+    startingTeam: null,
+    currentTeam: null,
+    clue: null, // {word, number} — текущая активная подсказка
+    // История всех подсказок по командам: { red: [{word, number}], blue: [...] }.
+    // Показывается в карточке команды (см. client.md). Накапливается за партию.
+    clueHistory: { red: [], blue: [] },
+    timer: 0,
+    paused: false,
+    winner: null,
+    log: [],
+    _sockets: new Set(),
+    _interval: null
+  };
+}
+
+/**
+ * Добавляет запись в журнал событий комнаты. Журнал ограничен 60 записями:
+ * старые отбрасываются, чтобы память комнаты не росла бесконечно.
+ *
+ * @param {Room} room - комната (мутируется)
+ * @param {string} text - текст события
+ * @returns {void}
+ */
+function addLog(room, text) {
+  room.log.push({ t: Date.now(), text });
+  if (room.log.length > 60) room.log.shift();
+}
+
+/**
+ * Возвращает название команды в родительном падеже для сообщений журнала.
+ *
+ * @param {('red'|'blue')} t - команда
+ * @returns {string} «красных» | «синих»
+ */
+function teamName(t) {
+  return t === 'red' ? 'красных' : 'синих';
+}
+
+/**
+ * Считает, сколько неоткрытых карт осталось у каждой команды. Используется
+ * для счёта и проверки победы.
+ *
+ * @param {Room} room - комната
+ * @returns {{red: number, blue: number}} число неоткрытых карт по командам
+ */
+function teamCounts(room) {
+  const remaining = { red: 0, blue: 0 };
+  for (const c of room.board) {
+    if ((c.color === 'red' || c.color === 'blue') && !c.revealed) remaining[c.color]++;
+  }
+  return remaining;
+}
+
+module.exports = { createRoomObject, addLog, teamName, teamCounts };

@@ -1,0 +1,13 @@
+{
+  "name": "codenames-online",
+  "version": "1.0.0",
+  "description": "Браузерная игра Codenames с онлайн-комнатами (Node.js + WebSocket)",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
