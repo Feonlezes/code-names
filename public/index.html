@@ -85,44 +85,33 @@
             <ul class="player-list" id="red-operatives"></ul>
             <button class="link-btn btn-team" data-team="red" data-role="operative" id="red-join-operative">Войти в команду</button>
           </div>
-          <!-- Подвал карточки: ввод подсказки (капитан), история подсказок и
-               кнопка пропуска хода — управляются teams.view. -->
+          <!-- Подвал карточки: ввод подсказки (капитан) и кнопка пропуска хода —
+               управляются teams.view. -->
           <div class="team-footer">
             <div class="clue-input-wrap hidden" id="red-clue-input-wrap">
-              <input class="input clue-input" id="red-clue-input" type="text" maxlength="40" placeholder="слово 3" autocomplete="off">
+              <input class="input clue-input" id="red-clue-input" type="text" maxlength="40" autocomplete="off" aria-label="Подсказка команды">
               <button class="btn btn-primary clue-add" id="red-clue-add" title="Дать подсказку">+</button>
             </div>
             <p class="clue-error" id="red-clue-error"></p>
-            <div class="clue-history-wrap hidden" id="red-clue-history-wrap">
-              <div class="clue-history-title">История подсказок</div>
-              <ul class="clue-history" id="red-clue-history"></ul>
-            </div>
             <button class="btn btn-warning btn-sm skip-btn hidden" id="red-skip-btn" data-team="red">⏭ Пропустить ход</button>
             <div class="vote-dots vote-dots-skip" id="red-skip-dots"></div>
             <div class="skip-loader hidden" id="red-skip-loader"><div class="skip-loader-bar" id="red-skip-loader-bar"></div></div>
+          </div>
+          <!-- История подсказок прижата к низу карточки: вместо заголовка —
+               черта во всю ширину карточки, под ней список подсказок. -->
+          <div class="clue-history-wrap hidden" id="red-clue-history-wrap">
+            <div class="clue-history-line"></div>
+            <ul class="clue-history" id="red-clue-history"></ul>
           </div>
         </div>
       </aside>
 
       <!-- Центр: поле -->
       <main class="main">
-        <!-- Строка фазы: видна только в лобби и после игры; таймер/пауза вынесены
-             в нижнюю карточку #timer-bar. -->
-        <div id="status-bar" class="status-bar hidden">
-          <div id="status-text" class="status-text">Лобби</div>
-        </div>
-
         <!-- Обёртка центрирует поле (capped 600px) по вертикали в оставшейся
              высоте main; карты прямоугольные и заполняют ширину колонки. -->
         <div class="board-area">
           <div id="board" class="board"></div>
-        </div>
-
-        <div class="game-controls">
-          <button id="shuffle-btn" class="btn btn-secondary hidden">🔀 Перемешать команды</button>
-          <button id="start-btn" class="btn btn-primary hidden">▶️ Начать игру</button>
-          <button id="newgame-btn" class="btn btn-primary hidden">🔄 Новая игра</button>
-          <button id="lobby-btn" class="btn btn-secondary hidden">↩️ В лобби</button>
         </div>
       </main>
 
@@ -140,21 +129,23 @@
             <ul class="player-list" id="blue-operatives"></ul>
             <button class="link-btn btn-team" data-team="blue" data-role="operative" id="blue-join-operative">Войти в команду</button>
           </div>
-          <!-- Подвал карточки: ввод подсказки (капитан), история подсказок и
-               кнопка пропуска хода — управляются teams.view. -->
+          <!-- Подвал карточки: ввод подсказки (капитан) и кнопка пропуска хода —
+               управляются teams.view. -->
           <div class="team-footer">
             <div class="clue-input-wrap hidden" id="blue-clue-input-wrap">
-              <input class="input clue-input" id="blue-clue-input" type="text" maxlength="40" placeholder="слово 3" autocomplete="off">
+              <input class="input clue-input" id="blue-clue-input" type="text" maxlength="40" autocomplete="off" aria-label="Подсказка команды">
               <button class="btn btn-primary clue-add" id="blue-clue-add" title="Дать подсказку">+</button>
             </div>
             <p class="clue-error" id="blue-clue-error"></p>
-            <div class="clue-history-wrap hidden" id="blue-clue-history-wrap">
-              <div class="clue-history-title">История подсказок</div>
-              <ul class="clue-history" id="blue-clue-history"></ul>
-            </div>
             <button class="btn btn-warning btn-sm skip-btn hidden" id="blue-skip-btn" data-team="blue">⏭ Пропустить ход</button>
             <div class="vote-dots vote-dots-skip" id="blue-skip-dots"></div>
             <div class="skip-loader hidden" id="blue-skip-loader"><div class="skip-loader-bar" id="blue-skip-loader-bar"></div></div>
+          </div>
+          <!-- История подсказок прижата к низу карточки: вместо заголовка —
+               черта во всю ширину карточки, под ней список подсказок. -->
+          <div class="clue-history-wrap hidden" id="blue-clue-history-wrap">
+            <div class="clue-history-line"></div>
+            <ul class="clue-history" id="blue-clue-history"></ul>
           </div>
         </div>
       </aside>
@@ -163,10 +154,20 @@
     <!-- Карточка таймера снизу по центру: подпись «кто думает» + таймер + кнопка
          паузы (по клику переключается на «Возобновить»). Приклеена к нижнему краю
          экрана (скруглены только верхние углы), видна только в активной игре. -->
-    <div id="timer-bar" class="timer-bar hidden">
+    <div id="timer-bar" class="bottom-bar timer-bar hidden">
       <span id="turn-label" class="turn-label"></span>
       <span id="timer" class="timer">⏱ <span id="timer-val">0</span></span>
       <button id="pause-btn" class="btn btn-ghost btn-sm">⏸ Пауза</button>
+    </div>
+
+    <!-- Карточка управления снизу по центру (того же вида, что таймер): кнопки
+         лобби (перемешать/начать) и завершённой игры (новая/в лобби). Видимость
+         задаёт controls.view — карточка скрыта, когда ни одна кнопка не активна. -->
+    <div id="game-controls" class="bottom-bar game-controls hidden">
+      <button id="shuffle-btn" class="btn btn-secondary hidden">🔀 Перемешать команды</button>
+      <button id="start-btn" class="btn btn-primary hidden">▶️ Начать игру</button>
+      <button id="newgame-btn" class="btn btn-primary hidden">🔄 Новая игра</button>
+      <button id="lobby-btn" class="btn btn-secondary hidden">↩️ В лобби</button>
     </div>
   </div>
 
@@ -237,11 +238,12 @@
   <!-- Контейнер уведомлений (тосты) -->
   <div id="toasts" class="toasts"></div>
 
-  <!-- Победа: заливка цветом команды-победителя расходится на полэкрана и в
-       конце гаснет (task 2). Не перехватывает клики (pointer-events:none),
-       поэтому кнопки «Новая игра» доступны во время эффекта. -->
+  <!-- Победа: линейная заливка цветом команды-победителя позади всего UI
+       (z-index:-1). Насыщенный цвет у края экрана команды (красные слева, синие
+       справа) затухает в прозрачность к другому концу страницы, сливаясь с фоном
+       (task 2). Не перехватывает клики и не перекрывает элементы. -->
   <div id="win-flood" class="win-flood hidden" aria-hidden="true">
-    <div class="win-flood-burst"></div>
+    <div class="win-flood-wash"></div>
   </div>
 
   <script src="words.js"></script>

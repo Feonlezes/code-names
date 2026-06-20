@@ -107,9 +107,10 @@ function renderClueHistory(state, team) {
   const hist = (state.clueHistory && state.clueHistory[team]) || [];
   if (!hist.length) { wrap.classList.add('hidden'); ul.innerHTML = ''; return; }
   wrap.classList.remove('hidden');
+  // Без числа-ориентира (капитан ввёл только слово) показываем «?».
   ul.innerHTML = hist.map(c =>
     `<li><span class="ch-word">${escapeHtml(c.word)}</span>` +
-    `<span class="ch-num">${c.number === 0 ? '∞' : c.number}</span></li>`
+    `<span class="ch-num">${c.number == null ? '?' : c.number}</span></li>`
   ).join('');
 }
 
@@ -174,11 +175,11 @@ function renderSkip(state, my, team) {
 }
 
 /**
- * Разбирает строку ввода подсказки в «слово + (необязательно) цифру». Правила
- * (task 4): ровно одно слово; необязательная одна цифра 0–9 через пробел; два
- * слова запрещены.
+ * Разбирает строку ввода подсказки в «слово + (необязательно) цифру». Правила:
+ * ровно одно слово; необязательная одна цифра 0–9 через пробел; два слова
+ * запрещены. Если цифры нет — number остаётся null (в истории отрисуется «?»).
  * @param {string} raw - сырой текст из поля ввода
- * @returns {{word:string, number:number}|{error:string}}
+ * @returns {{word:string, number:(number|null)}|{error:string}}
  */
 function parseClue(raw) {
   const parts = String(raw || '').trim().split(/\s+/).filter(Boolean);
@@ -191,11 +192,12 @@ function parseClue(raw) {
     words = parts.slice(0, -1);
   }
   if (words.length === 0) return { error: 'Введите слово, а не только цифру' };
-  if (words.length > 1) return { error: 'Нельзя вводить два слова — только одно слово и цифру' };
+  if (words.length > 1) return { error: 'Можно ввести только одно слово' };
   if (number !== null && (number.length > 1 || +number < 0 || +number > 9)) {
     return { error: 'Цифра должна быть от 0 до 9' };
   }
-  return { word: words[0], number: number === null ? 0 : +number };
+  // Слово без цифры — допустимо: число остаётся null и покажется как «?».
+  return { word: words[0], number: number === null ? null : +number };
 }
 
 /**

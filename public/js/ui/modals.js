@@ -15,9 +15,9 @@ let lastWinner = null;
 
 /**
  * При завершении игры один раз запускает заливку экрана цветом команды-
- * победителя (task 2): круг расходится из центра на полэкрана и в конце гаснет.
- * Цвет передаётся в CSS через переменную --win-color; по окончании анимации слой
- * скрывается. Сбрасывается, когда игра больше не в фазе over.
+ * победителя (task 2): горизонтальный градиент от края команды-победителя к
+ * противоположному, где цвет затухает в фон. Слой остаётся видимым, пока игра в
+ * фазе over, и скрывается (вместе со сбросом lastWinner), когда фаза меняется.
  * @returns {void}
  */
 export function renderWin() {
@@ -26,26 +26,33 @@ export function renderWin() {
     lastWinner = state.winner;
     floodWin(state.winner);
   }
-  if (state.phase !== 'over') lastWinner = null;
+  if (state.phase !== 'over') {
+    lastWinner = null;
+    $('#win-flood').classList.add('hidden');
+  }
 }
 
 /**
- * Проигрывает анимацию заливки цветом победителя поверх поля. Перезапускает
- * анимацию принудительным reflow (на случай повторной победы за сессию) и прячет
- * слой по её завершении.
- * @param {('red'|'blue')} winner - команда-победитель (задаёт цвет)
+ * Включает заливку позади UI цветом команды-победителя. Задаёт цвет команды
+ * (--win-color) и сторону линейного градиента (--win-dir: «to left» для красных
+ * слева, «to right» для синих справа — насыщенный цвет у края команды, затухание
+ * к другому концу) и перезапускает fade-in принудительным reflow (на случай
+ * повторной победы за сессию). Слой не прячет — он живёт до смены фазы.
+ * @param {('red'|'blue')} winner - команда-победитель (задаёт цвет и сторону)
  * @returns {void}
  */
 function floodWin(winner) {
   const flood = $('#win-flood');
-  const burst = flood.querySelector('.win-flood-burst');
-  flood.style.setProperty('--win-color', winner === 'red' ? '#ff6450' : '#50bbff');
+  const wash = flood.querySelector('.win-flood-wash');
+  // Глубокие цвета победы: синие — #043a5d (образец из ТЗ), красные — зеркальный
+  // глубокий красный #5d1410. Затухание задаётся прозрачным стопом в CSS.
+  flood.style.setProperty('--win-color', winner === 'red' ? '#5d1410' : '#043a5d');
+  flood.style.setProperty('--win-dir', winner === 'red' ? 'to left' : 'to right');
   flood.classList.remove('hidden');
-  // Снять класс и форсировать reflow, чтобы CSS-анимация запустилась заново.
-  burst.style.animation = 'none';
-  void burst.offsetWidth;
-  burst.style.animation = '';
-  burst.addEventListener('animationend', () => flood.classList.add('hidden'), { once: true });
+  // Снять анимацию и форсировать reflow, чтобы fade-in проигрался заново.
+  wash.style.animation = 'none';
+  void wash.offsetWidth;
+  wash.style.animation = '';
 }
 
 /**
