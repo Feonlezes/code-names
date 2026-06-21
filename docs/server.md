@@ -37,7 +37,7 @@
 | Модуль | Содержимое |
 |---|---|
 | `transport/httpStatic.js` | `createHttpServer` — отдача статики из `public/` + защита от path traversal. |
-| `transport/wsServer.js` | `attachWebSocket` — WebSocket-сервер поверх HTTP и heartbeat (ping/pong). |
+| `transport/wsServer.js` | `attachWebSocket` — WebSocket-сервер поверх HTTP и heartbeat (ping/pong). На каждом соединении выключает алгоритм Нейгла (`ws._socket.setNoDelay(true)`): игра шлёт мелкие сообщения-намерения, а Nagle + delayed-ACK добавляют десятки–сотни мс задержки на действие (особенно заметно через туннель). |
 | `transport/messageRouter.js` | `handleConnection` — разбор входящих сообщений, проверка прав, вызов сервисов и рассылка. При входе заменяет устаревшие сокеты того же игрока, а `close` не помечает игрока offline, если у него остался живой сокет — иначе гонка «переподключение → запоздалый close» обрывала игроку рассылку (таймер/подсказки/события «зависали»). |
 
 ## `src/shared/`

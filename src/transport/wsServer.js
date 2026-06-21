@@ -20,7 +20,15 @@ const router = require('./messageRouter');
 function attachWebSocket(httpServer) {
   const wss = new WebSocketServer({ server: httpServer });
 
-  wss.on('connection', (ws) => router.handleConnection(ws));
+  wss.on('connection', (ws) => {
+    // Отключаем алгоритм Нейгла на сокете соединения: игра интерактивная и шлёт
+    // мелкие сообщения-намерения, а Nagle + delayed-ACK копят их и добавляют
+    // десятки–сотни мс задержки на каждое действие — особенно заметно через
+    // туннель (publicный round-trip). Для игры важнее мгновенная доставка, чем
+    // экономия на размере пакета. _socket — нижележащий TCP-сокет ws.
+    try { ws._socket.setNoDelay(true); } catch (e) {}
+    router.handleConnection(ws);
+  });
 
   // Периодический ping: соединение, не ответившее pong с прошлого цикла,
   // считается мёртвым и закрывается.

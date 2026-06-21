@@ -60,6 +60,21 @@ winget install --id Cloudflare.cloudflared
 cloudflared tunnel --url http://localhost:3000
 ```
 
+**Через скрипт `npm run tunnel:cf`** — он сам найдёт `cloudflared`, поднимет
+quick-туннель, вытащит адрес `*.trycloudflare.com` из вывода и напечатает готовую
+(кликабельную в Windows Terminal / VS Code) ссылку:
+
+```powershell
+npm run tunnel:cf
+# сразу с кодом комнаты:
+npm run tunnel:cf -- -Room ABCD
+# другой порт, если сервер не на 3000:
+npm run tunnel:cf -- -Port 4000
+```
+
+Cloudflare обычно даёт заметно меньшую задержку, чем localhost.run (раздел 4),
+поэтому это предпочтительный вариант для игры.
+
 > Отдельная пошаговая инструкция «создать туннель и узнать его ссылку» (в т. ч.
 > надёжный способ получить адрес через файл) — в
 > [cloudflare-tunnel.md](cloudflare-tunnel.md).
