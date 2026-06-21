@@ -19,6 +19,11 @@ import { avatarColor } from '../util/color.js';
 // Сколько имён наблюдателей показываем в шапке до сворачивания в «+N».
 const OBSERVERS_SHOWN = 6;
 
+// Индекс подсказки, которую капитан сейчас редактирует инлайн, по командам (null —
+// не редактируем). Пока идёт правка, список истории НЕ перестраиваем при рендере,
+// чтобы не потерять поле ввода (task 1: редактирование подсказок во время игры).
+const editingClue = { red: null, blue: null };
+
 /**
  * Рисует карточку «Наблюдатели:» в шапке — игроки без команды (team === null),
  * перечисленные через запятую. Показываем максимум OBSERVERS_SHOWN имён, остальные
@@ -60,7 +65,13 @@ export function renderTeams() {
       const host = p.id === state.hostId ? ' 👑' : '';
       const dot = `<span class="player-dot" style="background:${avatarColor(p.id)}"></span>`;
       const youTag = p.id === state.you ? '<span class="you-tag">это вы</span>' : '';
-      li.innerHTML = `<span class="player-name">${dot}${escapeHtml(p.nickname)}${host}</span>${youTag}`;
+      const nick = escapeHtml(p.nickname);
+      // Ник в отдельном .nick-text: переносится максимум в 2 строки, дальше —
+      // многоточием (CSS line-clamp), а полный ник доступен в тултипе (title).
+      // Корона хоста — отдельным несжимаемым элементом, чтобы её не срезало.
+      li.innerHTML = `<span class="player-name">${dot}` +
+        `<span class="nick-text" title="${nick}">${nick}</span>` +
+        `${host ? `<span class="host-crown">${host}</span>` : ''}</span>${youTag}`;
       ul.appendChild(li);
     }
   }
@@ -92,7 +103,7 @@ export function renderTeams() {
     // от этого зависит и видимость блока истории (поле ввода живёт внутри него).
     const canGiveClue = my && my.team === team && my.role === 'spymaster' &&
                         state.phase === 'clue' && state.currentTeam === team && !state.paused;
-    renderClueHistory(state, team, canGiveClue);
+    renderClueHistory(state, my, team, canGiveClue);
     renderClueInput(state, my, team, canGiveClue);
     renderSkip(state, my, team);
   }
@@ -103,21 +114,99 @@ export function renderTeams() {
  * Поле ввода подсказки живёт внутри этого же блока (под списком слов), поэтому
  * блок виден, если есть хотя бы одна подсказка ИЛИ капитану сейчас нужно её
  * вводить (`showInput`) — иначе на самой первой подсказке поле было бы скрыто.
+ * Капитану СВОЕЙ команды во время игры к каждой подсказке добавляется кнопка-
+ * карандаш для инлайн-редактирования (task 1). Пока правка открыта
+ * (`editingClue[team]`), список НЕ перестраиваем, чтобы не потерять поле ввода.
  * @param {Object} state - снимок состояния
+ * @param {Object|undefined} my - запись текущего игрока
  * @param {('red'|'blue')} team
  * @param {boolean} showInput - капитан текущей команды вправе дать подсказку
  * @returns {void}
  */
-function renderClueHistory(state, team, showInput) {
+function renderClueHistory(state, my, team, showInput) {
   const wrap = $('#' + team + '-clue-history-wrap');
   const ul = $('#' + team + '-clue-history');
   const hist = (state.clueHistory && state.clueHistory[team]) || [];
   wrap.classList.toggle('hidden', !hist.length && !showInput);
+  // Идёт инлайн-правка подсказки этой команды — не трогаем DOM списка, иначе
+  // перестройка innerHTML затёрла бы открытое поле ввода (task 1).
+  if (editingClue[team] !== null) return;
+  // Карандаш редактирования — только капитану СВОЕЙ команды и только во время
+  // партии (клуэ/гесс). Чужие подсказки и не-капитаны его не видят.
+  const canEdit = !!my && my.role === 'spymaster' && my.team === team &&
+                  (state.phase === 'clue' || state.phase === 'guess');
   // Без числа-ориентира (капитан ввёл только слово) показываем «?».
-  ul.innerHTML = hist.map(c =>
+  ul.innerHTML = hist.map((c, i) =>
     `<li><span class="ch-word">${escapeHtml(c.word)}</span>` +
-    `<span class="ch-num">${c.number == null ? '?' : c.number}</span></li>`
+    `<span class="ch-num">${c.number == null ? '?' : c.number}</span>` +
+    (canEdit ? `<button class="clue-edit" data-team="${team}" data-index="${i}" title="Редактировать подсказку">✎</button>` : '') +
+    `</li>`
   ).join('');
+}
+
+/**
+ * Открывает инлайн-редактор подсказки: заменяет её строку в истории на поле ввода
+ * «слово + цифра» с кнопками сохранить/отмена. Пока редактор открыт, рендер не
+ * перестраивает список (см. editingClue). Enter — сохранить, Esc — отмена (task 1).
+ * @param {('red'|'blue')} team
+ * @param {number} index - позиция подсказки в истории команды
+ * @returns {void}
+ */
+function startEditClue(team, index) {
+  const state = getState();
+  const hist = (state.clueHistory && state.clueHistory[team]) || [];
+  const c = hist[index];
+  if (!c) return;
+  const ul = $('#' + team + '-clue-history');
+  const li = ul.children[index];
+  if (!li) return;
+  editingClue[team] = index;
+  const val = c.number == null ? c.word : `${c.word} ${c.number}`;
+  li.classList.add('editing');
+  li.innerHTML =
+    `<input class="input clue-input clue-edit-input" type="text" maxlength="40" value="${escapeHtml(val)}" aria-label="Редактирование подсказки">` +
+    `<button class="clue-edit-save" title="Сохранить">✓</button>` +
+    `<button class="clue-edit-cancel" title="Отмена">✕</button>`;
+  const input = li.querySelector('.clue-edit-input');
+  input.focus();
+  input.select();
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); saveEditClue(team); }
+    else if (e.key === 'Escape') { e.preventDefault(); cancelEditClue(team); }
+  });
+  li.querySelector('.clue-edit-save').addEventListener('click', () => saveEditClue(team));
+  li.querySelector('.clue-edit-cancel').addEventListener('click', () => cancelEditClue(team));
+}
+
+/**
+ * Валидирует и отправляет отредактированную подсказку (тот же parseClue, что и при
+ * вводе). При ошибке оставляет редактор открытым и подсвечивает поле. При успехе
+ * закрывает редактор; новый текст придёт обратным состоянием от сервера (task 1).
+ * @param {('red'|'blue')} team
+ * @returns {void}
+ */
+function saveEditClue(team) {
+  const index = editingClue[team];
+  if (index === null) return;
+  const ul = $('#' + team + '-clue-history');
+  const li = ul.children[index];
+  const input = li && li.querySelector('.clue-edit-input');
+  if (!input) { editingClue[team] = null; renderTeams(); return; }
+  const res = parseClue(input.value);
+  if (res.error) { input.classList.add('invalid'); return; } // оставляем поле открытым
+  send({ type: IN.EDIT_CLUE, index, word: res.word, number: res.number });
+  editingClue[team] = null;
+  renderTeams(); // вернуть строку в обычный вид сразу (сервер пришлёт финальный текст)
+}
+
+/**
+ * Закрывает редактор подсказки без сохранения и восстанавливает обычный вид строки.
+ * @param {('red'|'blue')} team
+ * @returns {void}
+ */
+function cancelEditClue(team) {
+  editingClue[team] = null;
+  renderTeams();
 }
 
 /**
@@ -240,4 +329,12 @@ export function bindTeamActions() {
   $$('.skip-btn').forEach(btn => {
     btn.addEventListener('click', () => send({ type: IN.END_TURN }));
   });
+  // Делегирование клика по карандашу редактирования подсказки: сами кнопки
+  // пересоздаются на каждом рендере, поэтому слушатель вешаем один раз на список.
+  for (const team of ['red', 'blue']) {
+    $('#' + team + '-clue-history').addEventListener('click', (e) => {
+      const btn = e.target.closest('.clue-edit');
+      if (btn) startEditClue(btn.dataset.team, +btn.dataset.index);
+    });
+  }
 }

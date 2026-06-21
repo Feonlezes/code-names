@@ -2,8 +2,11 @@
 
 /**
  * @module ui/settings.view
- * Рендер формы настроек комнаты и чтение её значений. Редактировать может
- * только хост и только вне игры; активное поле не затирается при перерисовке.
+ * Рендер формы настроек комнаты и чтение её значений. Редактировать настройки и
+ * жать «Сохранить и начать игру» может только хост — но в ЛЮБОЙ фазе (в т. ч. во
+ * время партии: клик применит настройки и тут же перезапустит игру). «Перемешать
+ * команды» остаётся доступной только вне игры. Активное поле не затирается при
+ * перерисовке.
  */
 
 import { $ } from '../util/dom.js';
@@ -17,7 +20,14 @@ export function renderSettings() {
   const state = getState();
   const s = state.settings;
   const isHost = state.you === state.hostId;
-  const editable = isHost && (state.phase === 'lobby' || state.phase === 'over');
+  // Поля настроек и кнопка «Сохранить и начать игру» доступны хосту в ЛЮБОЙ фазе:
+  // настройки можно менять и применять прямо во время партии — клик сохранит их и
+  // тут же (пере)запустит игру с новыми значениями.
+  const canEditSettings = isHost;
+  // «Перемешать команды» (task 2) — по-прежнему только вне игры (в лобби/после
+  // партии): перетасовка составов посреди партии не имеет смысла. Сервер тоже
+  // это проверяет (SHUFFLE_TEAMS).
+  const canShuffle = isHost && (state.phase === 'lobby' || state.phase === 'over');
   // Не затираем поле, если пользователь сейчас его редактирует.
   const active = document.activeElement;
   ['#set-size', '#set-first', '#set-answer', '#set-extra'].forEach(sel => {
@@ -28,12 +38,10 @@ export function renderSettings() {
       if (sel === '#set-answer') elx.value = s.answerTime;
       if (sel === '#set-extra') elx.value = s.extraTime;
     }
-    elx.disabled = !editable;
+    elx.disabled = !canEditSettings;
   });
-  $('#save-settings').disabled = !editable;
-  // «Перемешать команды» (task 2) — как в лобби: только хост и только вне игры
-  // (в лобби/после партии). Сервер тоже это проверяет (SHUFFLE_TEAMS).
-  $('#shuffle-settings').disabled = !editable;
+  $('#save-settings').disabled = !canEditSettings;
+  $('#shuffle-settings').disabled = !canShuffle;
   // Перезапуск партии — действие хоста; доступно в любой фазе (сервер тоже проверяет).
   $('#restart-game').disabled = !isHost;
   // «Завершить игру» (возврат в лобби) — только хосту и только когда есть что

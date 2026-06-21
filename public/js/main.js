@@ -195,7 +195,13 @@ function bindEvents() {
   $('#shuffle-btn').addEventListener('click', () => send({ type: IN.SHUFFLE_TEAMS }));
   // Дублёр «Перемешать команды» из модалки настроек (task 2) — то же сообщение.
   $('#shuffle-settings').addEventListener('click', () => send({ type: IN.SHUFFLE_TEAMS }));
-  $('#save-settings').addEventListener('click', () => send({ type: IN.UPDATE_SETTINGS, settings: readSettingsForm() }));
+  // «Сохранить и начать игру»: одним сообщением применяем настройки из формы и
+  // (пере)запускаем партию с ними — работает и в лобби, и во время игры (сервер
+  // применит настройки перед startGame). Закрываем модалку, чтобы показать поле.
+  $('#save-settings').addEventListener('click', () => {
+    send({ type: IN.NEW_GAME, words: WORDS, settings: readSettingsForm() });
+    $('#settings-modal').classList.add('hidden');
+  });
   // Перезапуск партии из модалки настроек — та же логика, что «Новая игра».
   $('#restart-game').addEventListener('click', () => send({ type: IN.NEW_GAME, words: WORDS }));
   // Завершить партию и вернуться в лобби (та же логика, что «В лобби»). Закрываем

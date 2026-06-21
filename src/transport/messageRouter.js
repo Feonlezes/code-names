@@ -135,13 +135,23 @@ function handleMessage(ws, data) {
       break;
     case IN.START_GAME:
     case IN.NEW_GAME:
-      if (isHost) gameEngine.startGame(room, msg.words, ctx);
+      // Хост может приложить к старту настройки (кнопка «Сохранить и начать игру»):
+      // тогда сперва применяем их (с валидацией), а затем стартуем партию уже по
+      // новым настройкам — даже если игра шла (startGame собирает поле заново).
+      if (isHost) {
+        if (msg.settings) roomService.updateSettings(room, msg.settings);
+        gameEngine.startGame(room, msg.words, ctx);
+      }
       break;
     case IN.BACK_TO_LOBBY:
       if (isHost) gameEngine.returnToLobby(room);
       break;
     case IN.GIVE_CLUE:
       gameEngine.giveClue(room, player, msg.word, msg.number, ctx);
+      break;
+    case IN.EDIT_CLUE:
+      // Капитан правит уже данную своей командой подсказку во время игры (task 1).
+      gameEngine.editClue(room, player, msg.index, msg.word, msg.number, ctx);
       break;
     case IN.GUESS:
       // task 1: клик по карте — это ГОЛОС агента, а не мгновенное открытие.
@@ -151,11 +161,6 @@ function handleMessage(ws, data) {
     case IN.END_TURN:
       // task 1: «Пропустить ход» — тоже голос; ход перейдёт по единогласию агентов.
       gameEngine.voteSkip(room, player, ctx);
-      break;
-    case IN.MARK_CARD:
-      // task 5: клик ОЖИДАЮЩЕЙ команды по карте — не открывает её, виден только
-      // своей команде (см. gameEngine.markCard и фильтр в serializer).
-      gameEngine.markCard(room, player, msg.index);
       break;
     case IN.PAUSE:
       if (room.phase === 'clue' || room.phase === 'guess') {
@@ -193,7 +198,6 @@ function handleLeave(ws, room) {
   roomService.removePlayer(room, ws.playerId);
   // Снять «зависший» голос ушедшего и пересчитать единогласие (task 1).
   gameEngine.handleVoterGone(room, ws.playerId, ctx);
-  gameEngine.removePlayerMarks(room, ws.playerId); // и его клики ожидания (task 5)
   ws.roomCode = null;
   broadcast(room);
   roomService.maybeCleanup(room);
@@ -221,7 +225,6 @@ function handleClose(ws) {
   roomService.disconnectPlayer(room, ws.playerId);
   // Отключившийся больше не «голосует» — убираем его голос и пересчитываем (task 1).
   gameEngine.handleVoterGone(room, ws.playerId, ctx);
-  gameEngine.removePlayerMarks(room, ws.playerId); // и снимаем его клики ожидания (task 5)
   broadcast(room);
   roomService.maybeCleanup(room);
 }
