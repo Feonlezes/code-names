@@ -23,7 +23,10 @@ const { OUT } = require('../shared/messages');
 function stateFor(room, playerId) {
   const me = room.players[playerId];
   const isSpymaster = me && me.role === 'spymaster';
-  const reveal = room.phase === 'over' || isSpymaster;
+  // X-ray (task 2): админ с включённым X-ray видит все цвета карт, даже будучи
+  // агентом. Решение персональное — раскрытие применяется только в ЕГО снимке.
+  const xray = !!(me && me.xray);
+  const reveal = room.phase === 'over' || isSpymaster || xray;
   const board = room.board.map(c => ({
     word: c.word,
     revealed: c.revealed,
@@ -50,6 +53,12 @@ function stateFor(room, playerId) {
     pendingVote: room.pendingVote,
     timer: room.timer,
     paused: room.paused,
+    // F9-«стоп-пауза»: общий оверлей с картинкой (task 3). Видят все — по нему
+    // клиент рисует затемнение и картинку.
+    stopped: room.stopped,
+    // Личный X-ray-флаг — чтобы клиент-админ знал состояние кнопки. Чужие цвета
+    // в board уже раскрыты выше (reveal); сам флаг секретов не несёт.
+    xray,
     winner: room.winner,
     remaining: teamCounts(room),
     log: room.log

@@ -12,7 +12,8 @@
  * @property {(room: import('../core/model').Room) => void} broadcast - разослать состояние
  *
  * Экспорт: startGame, giveClue, editClue, voteCard, voteSkip, handleVoterGone,
- * endTurn, checkWin, finishGame, pauseGame, resumeGame, returnToLobby.
+ * endTurn, checkWin, finishGame, pauseGame, resumeGame, returnToLobby, toggleStop,
+ * adminAddClue.
  */
 
 const { shuffle } = require('../core/rng');
@@ -86,6 +87,7 @@ function startGame(room, words, ctx) {
   resetVotes(room);
   room.timer = room.settings.firstMoveTime;
   room.paused = false;
+  room.stopped = false; // новая партия снимает «стоп-паузу», если она висела
   room.winner = null;
   room.log = [];
   addLog(room, `🎮 Игра началась! Первыми ходят ${teamName(startingTeam)}.`);
@@ -219,18 +221,41 @@ function editClue(room, player, index, word, number, ctx) {
   addLog(room, `✏️ Капитан ${teamName(team)} изменил подсказку: «${word}» — ${num === null ? '?' : num}`);
 }
 
+/**
+ * Админ-панель: добавляет подсказку в историю указанной команды (кнопка «Добавить
+ * ответ красным/синим»). Отладочный инструмент — просто дописывает запись в
+ * `room.clueHistory[team]` (в карточке команды появляется новая строка), не трогая
+ * фазу, активную подсказку и таймер. Слово/число генерируются детерминированно от
+ * длины истории (без Math.random — предсказуемо). Молча игнорирует неверную команду.
+ *
+ * @param {import('../core/model').Room} room
+ * @param {('red'|'blue')} team
+ * @returns {void}
+ */
+function adminAddClue(room, team) {
+  if (team !== 'red' && team !== 'blue') return;
+  if (!room.clueHistory[team]) room.clueHistory[team] = [];
+  const n = room.clueHistory[team].length + 1;
+  const word = 'Ответ' + n;        // ровно одно слово (без пробелов) — как у giveClue
+  const number = 1 + ((n - 1) % 9); // 1..9 по кругу
+  room.clueHistory[team].push({ word, number });
+  addLog(room, `🛠 Админ добавил подсказку ${teamName(team)}: «${word}» — ${number}`);
+}
+
 // ---------- Голосование агентов (task 1) ----------
 
 /**
  * Возвращает подключённых агентов текущей команды. Именно их единогласие нужно
  * для открытия карты или пропуска хода — капитан не голосует (он видит цвета).
+ * Боты (фейковые игроки админа) исключены: у них нет сокета и они никогда не
+ * голосуют, иначе их «зависший» голос навсегда блокировал бы единогласие (task 2).
  *
  * @param {import('../core/model').Room} room
  * @returns {Array<import('../core/model').Player>}
  */
 function currentOperatives(room) {
   return Object.values(room.players).filter(
-    p => p.team === room.currentTeam && p.role === 'operative' && p.connected
+    p => p.team === room.currentTeam && p.role === 'operative' && p.connected && !p.bot
   );
 }
 
@@ -478,10 +503,37 @@ function returnToLobby(room) {
   // В лобби можно попасть и из паузы (кнопка «Завершить игру» в настройках),
   // поэтому снимаем флаг паузы — иначе он «прилип» бы к новому лобби.
   room.paused = false;
+  room.stopped = false; // и «стоп-паузу» тоже снимаем
   addLog(room, '↩️ Возврат в лобби.');
+}
+
+/**
+ * Переключает F9-«стоп-паузу» — общий для всех полноэкранный оверлей с картинкой
+ * (task 3). Пока включён, замораживает таймер хода и отсчёт голосования, чтобы
+ * время не шло «под картинкой»; голоса (кружки) сохраняются. Снятие заново
+ * запускает таймер текущей фазы (если игра активна и не на ручной паузе) и
+ * пересчитывает единогласие. Логика отдельная от ручной паузы (`paused`): оверлей
+ * всё равно перекрывает интерфейс, поэтому ручная пауза и «стоп» не конфликтуют.
+ *
+ * @param {import('../core/model').Room} room
+ * @param {EngineCtx} ctx
+ * @returns {void}
+ */
+function toggleStop(room, ctx) {
+  room.stopped = !room.stopped;
+  if (room.stopped) {
+    timer.clearTimer(room);
+    timer.clearCountdown(room);
+    room.pendingVote = null;
+  } else if ((room.phase === 'clue' || room.phase === 'guess') && !room.paused) {
+    armTimer(room, ctx);
+    // Вдруг единогласие ещё держится (голоса не менялись) — перезапустим отсчёт.
+    reevaluateVotes(room, ctx);
+  }
 }
 
 module.exports = {
   startGame, giveClue, editClue, voteCard, voteSkip, handleVoterGone,
-  endTurn, checkWin, finishGame, pauseGame, resumeGame, returnToLobby
+  endTurn, checkWin, finishGame, pauseGame, resumeGame, returnToLobby, toggleStop,
+  adminAddClue
 };

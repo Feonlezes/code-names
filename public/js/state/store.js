@@ -38,6 +38,7 @@ export function structuralSig() {
     votes: state.votes,
     pendingVote: state.pendingVote,
     paused: state.paused,
+    stopped: state.stopped,
     winner: state.winner,
     host: state.hostId,
     you: state.you,

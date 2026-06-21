@@ -7,7 +7,9 @@
  * подсказок команды (task 4) и кнопка «Пропустить ход» (task 1: голосование с
  * кружками агентов и 2-сек лоадером единогласия). Карточка команды, чей сейчас
  * ход, получает неоновую подсветку (task 4). Выбор стороны/роли доступен в лобби
- * и на паузе (task 2).
+ * и на паузе (task 2). Лидеру комнаты и /admin при наведении на строку игрока
+ * показывается плавающее меню модерации (task 1): «Сделать админом» (передать
+ * корону) и «Переместить в наблюдатели».
  */
 
 import { $, $$, escapeHtml } from '../util/dom.js';
@@ -15,6 +17,7 @@ import { getState, me } from '../state/store.js';
 import { send } from '../net/socket.js';
 import { IN } from '../net/messages.js';
 import { avatarColor } from '../util/color.js';
+import { IS_ADMIN } from '../util/admin.js';
 
 // Сколько имён наблюдателей показываем в шапке до сворачивания в «+N».
 const OBSERVERS_SHOWN = 6;
@@ -60,6 +63,8 @@ export function renderTeams() {
     ul.innerHTML = '';
     for (const p of arr) {
       const li = document.createElement('li');
+      // id игрока на строке — по нему меню модерации (task 1) знает, кого двигать.
+      li.dataset.pid = p.id;
       if (p.id === state.you) li.classList.add('you');
       if (!p.connected) li.classList.add('offline');
       const host = p.id === state.hostId ? ' 👑' : '';
@@ -337,4 +342,94 @@ export function bindTeamActions() {
       if (btn) startEditClue(btn.dataset.team, +btn.dataset.index);
     });
   }
+  bindPlayerMenu();
+}
+
+// ---------- Меню модерации при наведении на игрока (task 1) ----------
+
+// Таймер скрытия меню: даёт время увести курсор со строки в само меню, не теряя
+// его (между строкой и меню возможен крошечный зазор).
+let menuHideTimer = null;
+
+/**
+ * Вправе ли текущий зритель модерировать игроков: лидер комнаты или /admin.
+ * Сервер проверяет это же право повторно (messageRouter.canModerate).
+ * @returns {boolean}
+ */
+function canModerateNow() {
+  const state = getState();
+  if (!state) return false;
+  const my = me();
+  return IS_ADMIN || !!(my && my.id === state.hostId);
+}
+
+/**
+ * Показывает плавающее меню модерации сбоку от строки игрока: для красной команды
+ * (левая карточка) — справа от строки, для синей (правая карточка) — слева, чтобы
+ * меню не уходило за край экрана. Кнопка «Сделать админом» скрывается, если игрок
+ * уже лидер. Меню — fixed-элемент в body, поэтому не обрезается overflow карточки.
+ * @param {HTMLElement} li - строка игрока (с data-pid)
+ * @returns {void}
+ */
+function showPlayerMenu(li) {
+  const menu = $('#player-menu');
+  const pid = li.dataset.pid;
+  if (!pid) return;
+  clearTimeout(menuHideTimer);
+  menu.dataset.pid = pid;
+  // «Сделать админом» прячем для текущего лидера (передавать ему нечего).
+  const state = getState();
+  menu.querySelector('.pm-host').classList.toggle('hidden', state && pid === state.hostId);
+
+  const blue = !!li.closest('.team-blue');
+  const rect = li.getBoundingClientRect();
+  menu.classList.remove('hidden');           // показать до замеров (нужна ширина)
+  const mw = menu.offsetWidth;
+  const mh = menu.offsetHeight;
+  // По горизонтали — сбоку от строки (синие — слева, красные — справа).
+  let left = blue ? rect.left - mw - 6 : rect.right + 6;
+  left = Math.max(6, Math.min(left, window.innerWidth - mw - 6));
+  // По вертикали — у верха строки, но не вылезая за нижний край экрана.
+  let top = Math.min(rect.top, window.innerHeight - mh - 6);
+  top = Math.max(6, top);
+  menu.style.left = left + 'px';
+  menu.style.top = top + 'px';
+}
+
+/** Скрывает меню модерации. @returns {void} */
+function hidePlayerMenu() {
+  $('#player-menu').classList.add('hidden');
+}
+
+/**
+ * Одноразовая привязка меню модерации: наведение на строку игрока открывает меню,
+ * уход — закрывает (с задержкой, чтобы успеть зайти в меню). Кнопки шлют действия
+ * по data-pid меню. Делегирование на карточках команд (строки пересоздаются при
+ * каждом рендере, а карточки и само меню — статичны).
+ * @returns {void}
+ */
+function bindPlayerMenu() {
+  const menu = $('#player-menu');
+  for (const team of ['red', 'blue']) {
+    const block = $('#team-' + team);
+    block.addEventListener('mouseover', (e) => {
+      const li = e.target.closest('li[data-pid]');
+      if (li && canModerateNow()) showPlayerMenu(li);
+    });
+    block.addEventListener('mouseout', (e) => {
+      // Не прячем, если курсор уходит в само меню.
+      if (menu.contains(e.relatedTarget)) return;
+      menuHideTimer = setTimeout(hidePlayerMenu, 180);
+    });
+  }
+  menu.addEventListener('mouseenter', () => clearTimeout(menuHideTimer));
+  menu.addEventListener('mouseleave', hidePlayerMenu);
+  menu.querySelector('.pm-host').addEventListener('click', () => {
+    if (menu.dataset.pid) send({ type: IN.SET_HOST, playerId: menu.dataset.pid });
+    hidePlayerMenu();
+  });
+  menu.querySelector('.pm-observer').addEventListener('click', () => {
+    if (menu.dataset.pid) send({ type: IN.MOVE_OBSERVER, playerId: menu.dataset.pid });
+    hidePlayerMenu();
+  });
 }
