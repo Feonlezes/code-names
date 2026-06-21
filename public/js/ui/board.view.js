@@ -34,7 +34,12 @@ let prevMarkSig = null;   // Map<number,string> — кто из ожидающе
 export function renderBoard(spotlightSpymaster) {
   const state = getState();
   const board = $('#board');
-  board.className = 'board size-' + (state.settings.boardSize);
+  // Число колонок берём из РЕАЛЬНОГО размера доски (она всегда квадратная: 25 или
+  // 36 карт), а не из настроек. Иначе после партии 5×5 смена настройки на 6×6
+  // (доска ещё старая, 25 карт) рисовала бы 6 колонок поверх 25 карт — «битую»
+  // сетку 4 ряда по 6 + 1. Новая доска нужного размера появится при старте партии.
+  const cols = state.board.length ? Math.round(Math.sqrt(state.board.length)) : state.settings.boardSize;
+  board.className = 'board size-' + cols;
   // Пометка текущей команды на поле — задаёт цвет лоадера выбора карты (см.
   // .board.turn-red/blue .cell-loader-bar в CSS).
   if (state.currentTeam) board.classList.add('turn-' + state.currentTeam);

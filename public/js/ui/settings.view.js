@@ -31,8 +31,14 @@ export function renderSettings() {
     elx.disabled = !editable;
   });
   $('#save-settings').disabled = !editable;
+  // «Перемешать команды» (task 2) — как в лобби: только хост и только вне игры
+  // (в лобби/после партии). Сервер тоже это проверяет (SHUFFLE_TEAMS).
+  $('#shuffle-settings').disabled = !editable;
   // Перезапуск партии — действие хоста; доступно в любой фазе (сервер тоже проверяет).
   $('#restart-game').disabled = !isHost;
+  // «Завершить игру» (возврат в лобби) — только хосту и только когда есть что
+  // завершать: партия идёт или уже закончена (вне лобби). Сервер проверяет права.
+  $('#finish-game').disabled = !(isHost && state.phase !== 'lobby');
   $('#settings-host-note').textContent = isHost ? '' : '(меняет лидер комнаты)';
 }
 

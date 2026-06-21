@@ -107,7 +107,11 @@ function endTurn(room, ctx) {
   room.clue = null;
   resetVotes(room); // новый ход — голоса прошлой команды сбрасываем
   resetMarks(room); // и клики: ожидающей теперь становится другая команда (task 5)
-  room.timer = room.settings.firstMoveTime;
+  // Удлинённое время (firstMoveTime, 120с) даётся ТОЛЬКО на самый первый ход
+  // партии — капитану нужно изучить свежую раскладку. Все последующие ходы
+  // лидера короче (answerTime, 60с) и никогда не превышают первый. Первый ход
+  // выставляет startGame; сюда (endTurn = смена хода) попадаем только со второго.
+  room.timer = room.settings.answerTime;
   armTimer(room, ctx);
 }
 
@@ -518,6 +522,9 @@ function returnToLobby(room) {
   room.board = [];
   room.clue = null;
   room.winner = null;
+  // В лобби можно попасть и из паузы (кнопка «Завершить игру» в настройках),
+  // поэтому снимаем флаг паузы — иначе он «прилип» бы к новому лобби.
+  room.paused = false;
   addLog(room, '↩️ Возврат в лобби.');
 }
 

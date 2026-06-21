@@ -177,7 +177,16 @@ select.input {
    контентом скроллится внутри себя. Прижата вплотную к краю экрана, поэтому
    скругление снимается с той стороны, что касается края (см. .team-red/.team-blue
    ниже) — у края бордер прямой. */
-.team-block { position: relative; width: 100%; height: 100%; max-height: 600px; overflow-y: auto; border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--panel); display: flex; flex-direction: column; }
+/* Карточка САМА не скроллится (overflow:hidden): при большом числе игроков
+   скроллится только список участников внутри (.team-section ниже), а история
+   подсказок и подвал с кнопкой пропуска всегда остаются у нижней рамки. Иначе при
+   добавлении кружков голосов за пропуск контент перерастал 600px и у всей карточки
+   появлялся скролл (task 1). */
+.team-block { position: relative; width: 100%; height: 100%; max-height: 600px; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--panel); display: flex; flex-direction: column; }
+/* Список игроков забирает свободную высоту карточки и скроллится сам (min-height:0
+   обязателен, иначе flex-элемент не сжимается ниже содержимого). История и подвал
+   остаются прижатыми к низу. */
+.team-section { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 /* Весь реальный контент карточки — над фоновой цифрой (watermark лежит на z-index:0). */
 .team-block > *:not(.team-watermark) { position: relative; z-index: 1; }
 /* Красная — у левого края экрана: левый бордер прямой (скругление только справа),
@@ -373,7 +382,11 @@ select.input {
 }
 /* Число колонок по размеру поля: 5 для 5×5, 6 для 6×6. */
 .board.size-5 { grid-template-columns: repeat(5, 1fr); }
-.board.size-6 { grid-template-columns: repeat(6, 1fr); }
+/* У 6×6 ширину карт ограничивала рамка 910px (≈131px на карту против ≈158px у
+   5×5). Поднимаем потолок рамки до 1030px (910 + 6×20 + запас на gap), чтобы
+   каждая карта стала примерно на 20px шире. Потолок самой карты (158px у .cell)
+   при этом не достигается. */
+.board.size-6 { grid-template-columns: repeat(6, 1fr); max-width: 1030px; }
 /* Текст ожидания старта — крупнее обычного, чтобы заметнее читался на пустом поле. */
 .board-waiting { font-size: 22px; }
 .cell {

@@ -203,7 +203,14 @@
             <input id="set-extra" class="input" type="number" min="0" max="999">
           </label>
           <button id="save-settings" class="btn btn-secondary btn-block">Сохранить настройки</button>
+          <!-- Та же «Перемешать команды», что и в лобби (task 2): дублируем в
+               настройки, чтобы хост мог пересобрать составы прямо отсюда. -->
+          <button id="shuffle-settings" class="btn btn-secondary btn-block">🔀 Перемешать команды</button>
           <button id="restart-game" class="btn btn-warning btn-block">🔄 Перезапустить игру</button>
+          <!-- Завершить текущую партию и вернуться в лобби (стартовый экран с
+               кнопками «Начать игру»/«Перемешать»). Только хост и только когда
+               партия идёт/завершена (task 2). -->
+          <button id="finish-game" class="btn btn-danger btn-block">🏁 Завершить игру</button>
         </div>
         <div class="panel log-panel">
           <h4>📜 События</h4>

@@ -193,9 +193,17 @@ function bindEvents() {
   // Одна кнопка паузы-переключателя: шлёт RESUME, если уже на паузе, иначе PAUSE.
   $('#pause-btn').addEventListener('click', () => send({ type: getState().paused ? IN.RESUME : IN.PAUSE }));
   $('#shuffle-btn').addEventListener('click', () => send({ type: IN.SHUFFLE_TEAMS }));
+  // Дублёр «Перемешать команды» из модалки настроек (task 2) — то же сообщение.
+  $('#shuffle-settings').addEventListener('click', () => send({ type: IN.SHUFFLE_TEAMS }));
   $('#save-settings').addEventListener('click', () => send({ type: IN.UPDATE_SETTINGS, settings: readSettingsForm() }));
   // Перезапуск партии из модалки настроек — та же логика, что «Новая игра».
   $('#restart-game').addEventListener('click', () => send({ type: IN.NEW_GAME, words: WORDS }));
+  // Завершить партию и вернуться в лобби (та же логика, что «В лобби»). Закрываем
+  // модалку, чтобы открыть стартовый экран с кнопками начала игры (task 2).
+  $('#finish-game').addEventListener('click', () => {
+    send({ type: IN.BACK_TO_LOBBY });
+    $('#settings-modal').classList.add('hidden');
+  });
 
   // team/role buttons (действуют в лобби и на паузе — сервер тоже это проверяет)
   $$('.btn-team').forEach(btn => {
