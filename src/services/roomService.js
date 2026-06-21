@@ -8,7 +8,7 @@
  * и журнал). Экспорт перечислен внизу.
  */
 
-const { randomCode, shuffle } = require('../core/rng');
+const { randomCode, randomInt, shuffle } = require('../core/rng');
 const { createRoomObject, addLog } = require('../core/model');
 const timer = require('./timerService');
 
@@ -45,12 +45,17 @@ function getRoom(code) {
  * раскидываем его по командам автоматически, сторону он выбирает сам
  * («Стать капитаном» / «Войти в команду»). Мутирует комнату и журнал.
  *
+ * Флаг isAdmin (вход по ссылке /admin) выставляется на игрока один раз и больше
+ * не снимается — авто-переподключение шлёт обычный joinRoom без флага, но право
+ * должно сохраниться (CLAUDE.md §2.1: проверка прав на сервере).
+ *
  * @param {import('../core/model').Room} room
  * @param {string} playerId
  * @param {string} [nickname]
+ * @param {boolean} [isAdmin] - вход по ссылке /admin (права админ-панели)
  * @returns {void}
  */
-function addPlayer(room, playerId, nickname) {
+function addPlayer(room, playerId, nickname, isAdmin) {
   if (!room.players[playerId]) {
     room.players[playerId] = {
       id: playerId,
@@ -64,6 +69,77 @@ function addPlayer(room, playerId, nickname) {
     room.players[playerId].connected = true;
     if (nickname) room.players[playerId].nickname = nickname;
   }
+  if (isAdmin) room.players[playerId].admin = true;
+}
+
+/**
+ * Добавляет «фейкового» игрока (бота) в команду или в наблюдатели — отладочный
+ * инструмент админ-панели (task 2: «Добавить игрока за красных/синих/наблюдателя»).
+ * Бот не имеет сокета и помечен `bot:true`, поэтому не учитывается в кворуме
+ * голосования, передаче лидерства и очистке комнаты. Всегда агент (роль
+ * operative) — капитанов-ботов не создаём. Мутирует комнату и журнал.
+ *
+ * @param {import('../core/model').Room} room
+ * @param {('red'|'blue'|null)} team - команда бота или null (наблюдатель)
+ * @returns {void}
+ */
+function addBot(room, team) {
+  const t = (team === 'red' || team === 'blue') ? team : null;
+  const id = 'bot-' + randomCode(c => !!room.players['bot-' + c]);
+  const n = Object.values(room.players).filter(p => p.bot).length + 1;
+  room.players[id] = {
+    id,
+    nickname: 'Бот ' + n,
+    team: t,
+    role: 'operative',
+    connected: true,
+    bot: true
+  };
+  addLog(room, `🤖 Добавлен «Бот ${n}»${t ? ' за ' + teamLabel(t) : ' в наблюдатели'}.`);
+}
+
+/**
+ * Возвращает название команды (для журнала добавления бота).
+ * @param {('red'|'blue')} t
+ * @returns {string}
+ */
+function teamLabel(t) {
+  return t === 'red' ? 'красных' : 'синих';
+}
+
+/**
+ * Передаёт корону лидера указанному игроку (меню модерации: «Сделать админом» —
+ * task 1). Допустимо в любой фазе. Молча игнорирует несуществующего игрока.
+ * Мутирует комнату и журнал.
+ *
+ * @param {import('../core/model').Room} room
+ * @param {string} playerId - кому передать лидерство
+ * @returns {void}
+ */
+function setHost(room, playerId) {
+  const player = room.players[playerId];
+  // Бота лидером не делаем (у него нет сокета) — игнорируем такой запрос.
+  if (!player || player.bot || room.hostId === playerId) return;
+  room.hostId = playerId;
+  addLog(room, `👑 ${player.nickname} стал лидером комнаты.`);
+}
+
+/**
+ * Переводит игрока в наблюдатели (меню модерации: «Переместить в наблюдатели» —
+ * task 1): сбрасывает команду в null и роль в operative. Снятие «зависшего»
+ * голоса делает вызывающий (см. messageRouter → handleVoterGone). Мутирует
+ * комнату и журнал.
+ *
+ * @param {import('../core/model').Room} room
+ * @param {string} playerId
+ * @returns {void}
+ */
+function moveToObservers(room, playerId) {
+  const player = room.players[playerId];
+  if (!player || player.team === null) return;
+  player.team = null;
+  player.role = 'operative';
+  addLog(room, `👁 ${player.nickname} перемещён в наблюдатели.`);
 }
 
 /**
@@ -103,9 +179,12 @@ function removePlayer(room, playerId) {
  * @returns {void}
  */
 function reassignHost(room) {
-  const next = Object.values(room.players).find(p => p.connected && p.id !== room.hostId)
-            || Object.values(room.players).find(p => p.id !== room.hostId)
-            || Object.values(room.players)[0];
+  // Боты (фейковые игроки админа) не могут быть лидером — пропускаем их при
+  // выборе нового хоста (предпочитаем подключённого реального игрока).
+  const next = Object.values(room.players).find(p => p.connected && !p.bot && p.id !== room.hostId)
+            || Object.values(room.players).find(p => !p.bot && p.id !== room.hostId)
+            || Object.values(room.players).find(p => !p.bot)
+            || null;
   room.hostId = next ? next.id : null;
   if (next) addLog(room, `👑 ${next.nickname} стал лидером комнаты.`);
 }
@@ -118,7 +197,9 @@ function reassignHost(room) {
  * @returns {void}
  */
 function maybeCleanup(room) {
-  const anyConnected = Object.values(room.players).some(p => p.connected);
+  // Боты «подключены» навсегда (нет сокета), поэтому их НЕ учитываем — иначе
+  // комната с одними ботами никогда не удалялась бы после ухода всех людей.
+  const anyConnected = Object.values(room.players).some(p => p.connected && !p.bot);
   if (!anyConnected) {
     timer.clearTimer(room);
     rooms.delete(room.code);
@@ -219,6 +300,7 @@ function updateSettings(room, settings) {
 }
 
 module.exports = {
-  createRoom, getRoom, addPlayer, disconnectPlayer, removePlayer,
-  reassignHost, maybeCleanup, shuffleTeams, setTeamRole, changeNickname, updateSettings
+  createRoom, getRoom, addPlayer, addBot, setHost, moveToObservers,
+  disconnectPlayer, removePlayer, reassignHost, maybeCleanup, shuffleTeams,
+  setTeamRole, changeNickname, updateSettings
 };

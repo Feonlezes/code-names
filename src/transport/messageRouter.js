@@ -50,13 +50,14 @@ const ctx = { broadcast };
  * @param {import('../core/model').Room} room
  * @param {string} playerId
  * @param {string} [nickname]
+ * @param {boolean} [isAdmin] - вход по ссылке /admin (права админ-панели)
  * @returns {void}
  */
-function joinRoom(ws, room, playerId, nickname) {
+function joinRoom(ws, room, playerId, nickname, isAdmin) {
   ws.roomCode = room.code;
   ws.playerId = playerId;
   room._sockets.add(ws);
-  roomService.addPlayer(room, playerId, nickname);
+  roomService.addPlayer(room, playerId, nickname, isAdmin);
   // Заменяем устаревшие сокеты этого же игрока (переподключение/обновление
   // вкладки). Без этого старый «полумёртвый» сокет оставался в _sockets, а его
   // запоздалый close помечал игрока отключённым — игрок «зависал»: не получал
@@ -100,14 +101,14 @@ function handleMessage(ws, data) {
 
   if (t === IN.CREATE_ROOM) {
     const room = roomService.createRoom(msg.playerId, msg.settings);
-    joinRoom(ws, room, msg.playerId, msg.nickname);
+    joinRoom(ws, room, msg.playerId, msg.nickname, msg.admin);
     return;
   }
 
   if (t === IN.JOIN_ROOM) {
     const room = roomService.getRoom((msg.code || '').toUpperCase());
     if (!room) { send(ws, { type: OUT.ERROR, message: 'Комната не найдена' }); return; }
-    joinRoom(ws, room, msg.playerId, msg.nickname);
+    joinRoom(ws, room, msg.playerId, msg.nickname, msg.admin);
     return;
   }
 
@@ -117,6 +118,11 @@ function handleMessage(ws, data) {
   const player = room.players[ws.playerId];
   if (!player) return;
   const isHost = ws.playerId === room.hostId;
+  // Права админ-панели (вход по ссылке /admin). Модерацию (передать лидера /
+  // в наблюдатели) может и лидер комнаты, и админ; отладочные действия
+  // (боты, имитация победы, X-ray) — только админ.
+  const isAdmin = !!player.admin;
+  const canModerate = isHost || isAdmin;
   const lobbyOrOver = room.phase === 'lobby' || room.phase === 'over';
 
   switch (t) {
@@ -135,13 +141,23 @@ function handleMessage(ws, data) {
       break;
     case IN.START_GAME:
     case IN.NEW_GAME:
-      if (isHost) gameEngine.startGame(room, msg.words, ctx);
+      // Хост может приложить к старту настройки (кнопка «Сохранить и начать игру»):
+      // тогда сперва применяем их (с валидацией), а затем стартуем партию уже по
+      // новым настройкам — даже если игра шла (startGame собирает поле заново).
+      if (isHost) {
+        if (msg.settings) roomService.updateSettings(room, msg.settings);
+        gameEngine.startGame(room, msg.words, ctx);
+      }
       break;
     case IN.BACK_TO_LOBBY:
       if (isHost) gameEngine.returnToLobby(room);
       break;
     case IN.GIVE_CLUE:
       gameEngine.giveClue(room, player, msg.word, msg.number, ctx);
+      break;
+    case IN.EDIT_CLUE:
+      // Капитан правит уже данную своей командой подсказку во время игры (task 1).
+      gameEngine.editClue(room, player, msg.index, msg.word, msg.number, ctx);
       break;
     case IN.GUESS:
       // task 1: клик по карте — это ГОЛОС агента, а не мгновенное открытие.
@@ -151,11 +167,6 @@ function handleMessage(ws, data) {
     case IN.END_TURN:
       // task 1: «Пропустить ход» — тоже голос; ход перейдёт по единогласию агентов.
       gameEngine.voteSkip(room, player, ctx);
-      break;
-    case IN.MARK_CARD:
-      // task 5: клик ОЖИДАЮЩЕЙ команды по карте — не открывает её, виден только
-      // своей команде (см. gameEngine.markCard и фильтр в serializer).
-      gameEngine.markCard(room, player, msg.index);
       break;
     case IN.PAUSE:
       if (room.phase === 'clue' || room.phase === 'guess') {
@@ -172,6 +183,45 @@ function handleMessage(ws, data) {
     case IN.SHUFFLE_TEAMS:
       // перемешивать может только лидер комнаты и только вне игры
       if (isHost && lobbyOrOver) roomService.shuffleTeams(room);
+      break;
+    // ---------- Модерация (лидер комнаты или /admin), task 1 ----------
+    case IN.SET_HOST:
+      // «Сделать админом» — передать корону лидера выбранному игроку.
+      if (canModerate && msg.playerId) roomService.setHost(room, msg.playerId);
+      break;
+    case IN.MOVE_OBSERVER:
+      // «Переместить в наблюдатели» — снять команду/роль выбранного игрока.
+      if (canModerate && msg.playerId) {
+        roomService.moveToObservers(room, msg.playerId);
+        // Снять «зависший» голос перемещённого и пересчитать единогласие (task 1).
+        gameEngine.handleVoterGone(room, msg.playerId, ctx);
+      }
+      break;
+    // ---------- F9-«стоп-пауза» (любой игрок), task 3 ----------
+    case IN.TOGGLE_STOP:
+      gameEngine.toggleStop(room, ctx);
+      addLog(room, room.stopped
+        ? `⏹ Игра остановлена (${player.nickname}).`
+        : `▶️ Остановка снята (${player.nickname}).`);
+      break;
+    // ---------- Админ-панель (только /admin), task 2 ----------
+    case IN.ADMIN_ADD_PLAYER:
+      // Добавить бота за красных/синих/наблюдателем (msg.team: 'red'|'blue'|null).
+      if (isAdmin) roomService.addBot(room, msg.team);
+      break;
+    case IN.ADMIN_ADD_CLUE:
+      // Добавить подсказку в историю команды (кнопка «Добавить ответ красным/синим»).
+      if (isAdmin) gameEngine.adminAddClue(room, msg.team);
+      break;
+    case IN.ADMIN_WIN:
+      // Имитировать победу команды: переводим игру в фазу over с победителем.
+      if (isAdmin && (msg.team === 'red' || msg.team === 'blue')) {
+        gameEngine.finishGame(room, msg.team);
+      }
+      break;
+    case IN.ADMIN_XRAY:
+      // Переключить личный X-ray: админ начинает/перестаёт видеть все цвета.
+      if (isAdmin) player.xray = !player.xray;
       break;
     case IN.LEAVE:
       handleLeave(ws, room);
@@ -193,7 +243,6 @@ function handleLeave(ws, room) {
   roomService.removePlayer(room, ws.playerId);
   // Снять «зависший» голос ушедшего и пересчитать единогласие (task 1).
   gameEngine.handleVoterGone(room, ws.playerId, ctx);
-  gameEngine.removePlayerMarks(room, ws.playerId); // и его клики ожидания (task 5)
   ws.roomCode = null;
   broadcast(room);
   roomService.maybeCleanup(room);
@@ -221,7 +270,6 @@ function handleClose(ws) {
   roomService.disconnectPlayer(room, ws.playerId);
   // Отключившийся больше не «голосует» — убираем его голос и пересчитываем (task 1).
   gameEngine.handleVoterGone(room, ws.playerId, ctx);
-  gameEngine.removePlayerMarks(room, ws.playerId); // и снимаем его клики ожидания (task 5)
   broadcast(room);
   roomService.maybeCleanup(room);
 }

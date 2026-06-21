@@ -11,8 +11,9 @@
  * @typedef {Object} EngineCtx
  * @property {(room: import('../core/model').Room) => void} broadcast - разослать состояние
  *
- * Экспорт: startGame, giveClue, voteCard, voteSkip, handleVoterGone, endTurn,
- * checkWin, finishGame, pauseGame, resumeGame, returnToLobby.
+ * Экспорт: startGame, giveClue, editClue, voteCard, voteSkip, handleVoterGone,
+ * endTurn, checkWin, finishGame, pauseGame, resumeGame, returnToLobby, toggleStop,
+ * adminAddClue.
  */
 
 const { shuffle } = require('../core/rng');
@@ -84,9 +85,9 @@ function startGame(room, words, ctx) {
   room.clue = null;
   room.clueHistory = { red: [], blue: [] };
   resetVotes(room);
-  resetMarks(room);
   room.timer = room.settings.firstMoveTime;
   room.paused = false;
+  room.stopped = false; // новая партия снимает «стоп-паузу», если она висела
   room.winner = null;
   room.log = [];
   addLog(room, `🎮 Игра началась! Первыми ходят ${teamName(startingTeam)}.`);
@@ -106,8 +107,11 @@ function endTurn(room, ctx) {
   room.phase = 'clue';
   room.clue = null;
   resetVotes(room); // новый ход — голоса прошлой команды сбрасываем
-  resetMarks(room); // и клики: ожидающей теперь становится другая команда (task 5)
-  room.timer = room.settings.firstMoveTime;
+  // Удлинённое время (firstMoveTime, 120с) даётся ТОЛЬКО на самый первый ход
+  // партии — капитану нужно изучить свежую раскладку. Все последующие ходы
+  // лидера короче (answerTime, 60с) и никогда не превышают первый. Первый ход
+  // выставляет startGame; сюда (endTurn = смена хода) попадаем только со второго.
+  room.timer = room.settings.answerTime;
   armTimer(room, ctx);
 }
 
@@ -138,7 +142,6 @@ function finishGame(room, winner) {
   room.phase = 'over';
   timer.clearTimer(room);
   resetVotes(room);
-  resetMarks(room);
   addLog(room, `🏆 Победа команды ${teamName(winner)}!`);
   return true;
 }
@@ -179,18 +182,80 @@ function giveClue(room, player, word, number, ctx) {
   armTimer(room, ctx);
 }
 
+/**
+ * Капитан редактирует одну из уже данных СВОЕЙ командой подсказок прямо во время
+ * партии (исправить опечатку или число). Меняет запись в `room.clueHistory[team]`
+ * по индексу. Если правится текущая активная подсказка (последняя у ходящей
+ * команды в фазе угадывания) — синхронно обновляет `room.clue`, чтобы команда
+ * сразу увидела новый текст. Фазу и таймер НЕ трогает. Молча игнорирует невалидные
+ * вызовы (не капитан, не своя команда, вне игры, плохой индекс, пустое/многословное
+ * слово) — сервер не доверяет клиенту (§2.1). Валидация слова/числа — как в giveClue.
+ *
+ * @param {import('../core/model').Room} room
+ * @param {import('../core/model').Player} player - отправитель (должен быть капитаном)
+ * @param {number} index - позиция подсказки в истории своей команды
+ * @param {string} word - новое слово-подсказка (ровно одно слово)
+ * @param {(number|string|null)} number - новая цифра-ориентир 0–9 или null
+ * @param {EngineCtx} ctx
+ * @returns {void}
+ */
+function editClue(room, player, index, word, number, ctx) {
+  // Редактировать можно только во время партии (не в лобби и не после игры).
+  if (room.phase !== 'clue' && room.phase !== 'guess') return;
+  if (player.role !== 'spymaster') return;
+  const team = player.team;
+  if (team !== 'red' && team !== 'blue') return;
+  const hist = room.clueHistory[team];
+  // Индекс должен указывать на существующую подсказку СВОЕЙ команды.
+  if (!Array.isArray(hist) || index < 0 || index >= hist.length) return;
+  word = String(word || '').trim();
+  if (!word || /\s/.test(word)) return;
+  let num = (number === null || number === undefined) ? null : parseInt(number, 10);
+  if (num !== null && (isNaN(num) || num < 0 || num > 9)) num = null;
+  hist[index] = { word, number: num };
+  // Если правится текущая активная подсказка (последняя у ходящей команды в фазе
+  // угадывания) — обновляем и room.clue, иначе у команды остался бы старый текст.
+  if (room.phase === 'guess' && team === room.currentTeam && index === hist.length - 1 && room.clue) {
+    room.clue = { word, number: num };
+  }
+  addLog(room, `✏️ Капитан ${teamName(team)} изменил подсказку: «${word}» — ${num === null ? '?' : num}`);
+}
+
+/**
+ * Админ-панель: добавляет подсказку в историю указанной команды (кнопка «Добавить
+ * ответ красным/синим»). Отладочный инструмент — просто дописывает запись в
+ * `room.clueHistory[team]` (в карточке команды появляется новая строка), не трогая
+ * фазу, активную подсказку и таймер. Слово/число генерируются детерминированно от
+ * длины истории (без Math.random — предсказуемо). Молча игнорирует неверную команду.
+ *
+ * @param {import('../core/model').Room} room
+ * @param {('red'|'blue')} team
+ * @returns {void}
+ */
+function adminAddClue(room, team) {
+  if (team !== 'red' && team !== 'blue') return;
+  if (!room.clueHistory[team]) room.clueHistory[team] = [];
+  const n = room.clueHistory[team].length + 1;
+  const word = 'Ответ' + n;        // ровно одно слово (без пробелов) — как у giveClue
+  const number = 1 + ((n - 1) % 9); // 1..9 по кругу
+  room.clueHistory[team].push({ word, number });
+  addLog(room, `🛠 Админ добавил подсказку ${teamName(team)}: «${word}» — ${number}`);
+}
+
 // ---------- Голосование агентов (task 1) ----------
 
 /**
  * Возвращает подключённых агентов текущей команды. Именно их единогласие нужно
  * для открытия карты или пропуска хода — капитан не голосует (он видит цвета).
+ * Боты (фейковые игроки админа) исключены: у них нет сокета и они никогда не
+ * голосуют, иначе их «зависший» голос навсегда блокировал бы единогласие (task 2).
  *
  * @param {import('../core/model').Room} room
  * @returns {Array<import('../core/model').Player>}
  */
 function currentOperatives(room) {
   return Object.values(room.players).filter(
-    p => p.team === room.currentTeam && p.role === 'operative' && p.connected
+    p => p.team === room.currentTeam && p.role === 'operative' && p.connected && !p.bot
   );
 }
 
@@ -351,87 +416,6 @@ function applyVote(room, ctx) {
   ctx.broadcast(room);
 }
 
-// ---------- Клики ожидающей команды (task 5) ----------
-
-/**
- * Полностью очищает клики обеих команд. Вызывается при смене хода, старте/конце
- * партии и возврате в лобби: после перехода хода ожидающей становится другая
- * команда, прежние «хотелки» теряют смысл. Мутирует комнату.
- *
- * @param {import('../core/model').Room} room
- * @returns {void}
- */
-function resetMarks(room) {
-  room.marks = { red: {}, blue: {} };
-}
-
-/**
- * Убирает клики по конкретной карте у ОБЕИХ команд. Вызывается при открытии
- * карты: помеченной картой больше не «хотят» — она уже вскрыта. Мутирует
- * room.marks.
- *
- * @param {import('../core/model').Room} room
- * @param {number} index - индекс открытой карты
- * @returns {void}
- */
-function clearCardMarks(room, index) {
-  delete room.marks.red[index];
-  delete room.marks.blue[index];
-}
-
-/**
- * Клик агента ОЖИДАЮЩЕЙ команды по карте (повторный клик по той же карте его
- * снимает). Это не ход и не голос: карта не открывается, состояние игры не
- * меняется — клик лишь виден своей команде (кружок + звук + пульс, как обычный
- * клик) и показывает, какое слово команда хочет открыть следующим. Выбор
- * эксклюзивен: один игрок — одна карта. Видимость только своей команде
- * обеспечивает сериализатор. Молча игнорирует невалидные вызовы (не активная
- * фаза, пауза, наблюдатель, своя очередь хода, капитан, открытая/несуществующая
- * карта) — сервер не доверяет клиенту (§2.1).
- *
- * @param {import('../core/model').Room} room
- * @param {import('../core/model').Player} player - отправитель
- * @param {number} index - индекс карты на поле
- * @returns {void}
- */
-function markCard(room, player, index) {
-  if (room.phase !== 'clue' && room.phase !== 'guess') return;
-  if (room.paused) return;
-  // Кликать может только агент команды, чьего хода сейчас НЕТ (ожидающая команда).
-  if (player.team !== 'red' && player.team !== 'blue') return;
-  if (player.team === room.currentTeam) return;
-  if (player.role !== 'operative') return;
-  const card = room.board[index];
-  if (!card || card.revealed) return;
-  const teamMarks = room.marks[player.team];
-  const had = (teamMarks[index] || []).includes(player.id);
-  // Эксклюзивно: снимаем прежний клик игрока со всех карт его команды.
-  for (const idx of Object.keys(teamMarks)) {
-    const left = teamMarks[idx].filter(id => id !== player.id);
-    if (left.length) teamMarks[idx] = left; else delete teamMarks[idx];
-  }
-  // Повторный клик по той же карте только снимает (had → не добавляем заново).
-  if (!had) (teamMarks[index] = teamMarks[index] || []).push(player.id);
-}
-
-/**
- * Убирает клики ушедшего/отключившегося игрока из обеих команд, чтобы его кружок
- * не «завис» на карте. Применимо в любой фазе; рассылку делает вызывающий.
- *
- * @param {import('../core/model').Room} room
- * @param {string} playerId
- * @returns {void}
- */
-function removePlayerMarks(room, playerId) {
-  for (const team of ['red', 'blue']) {
-    const m = room.marks[team];
-    for (const idx of Object.keys(m)) {
-      const left = m[idx].filter(id => id !== playerId);
-      if (left.length) m[idx] = left; else delete m[idx];
-    }
-  }
-}
-
 /**
  * Открывает карту по индексу и применяет последствия по правилам: убийца —
  * мгновенное поражение; своя карта — команда продолжает угадывать (с бонусом
@@ -448,7 +432,6 @@ function revealCard(room, index, ctx) {
   const card = room.board[index];
   if (!card || card.revealed) return;
   card.revealed = true;
-  clearCardMarks(room, index); // вскрытую карту больше не «хотят» — снимаем клики
   addLog(room, `👉 Команда ${teamName(room.currentTeam)} открыла «${card.word}»`);
 
   if (card.color === 'assassin') {
@@ -513,16 +496,44 @@ function resumeGame(room, ctx) {
 function returnToLobby(room) {
   timer.clearTimer(room);
   resetVotes(room);
-  resetMarks(room);
   room.phase = 'lobby';
   room.board = [];
   room.clue = null;
   room.winner = null;
+  // В лобби можно попасть и из паузы (кнопка «Завершить игру» в настройках),
+  // поэтому снимаем флаг паузы — иначе он «прилип» бы к новому лобби.
+  room.paused = false;
+  room.stopped = false; // и «стоп-паузу» тоже снимаем
   addLog(room, '↩️ Возврат в лобби.');
 }
 
+/**
+ * Переключает F9-«стоп-паузу» — общий для всех полноэкранный оверлей с картинкой
+ * (task 3). Пока включён, замораживает таймер хода и отсчёт голосования, чтобы
+ * время не шло «под картинкой»; голоса (кружки) сохраняются. Снятие заново
+ * запускает таймер текущей фазы (если игра активна и не на ручной паузе) и
+ * пересчитывает единогласие. Логика отдельная от ручной паузы (`paused`): оверлей
+ * всё равно перекрывает интерфейс, поэтому ручная пауза и «стоп» не конфликтуют.
+ *
+ * @param {import('../core/model').Room} room
+ * @param {EngineCtx} ctx
+ * @returns {void}
+ */
+function toggleStop(room, ctx) {
+  room.stopped = !room.stopped;
+  if (room.stopped) {
+    timer.clearTimer(room);
+    timer.clearCountdown(room);
+    room.pendingVote = null;
+  } else if ((room.phase === 'clue' || room.phase === 'guess') && !room.paused) {
+    armTimer(room, ctx);
+    // Вдруг единогласие ещё держится (голоса не менялись) — перезапустим отсчёт.
+    reevaluateVotes(room, ctx);
+  }
+}
+
 module.exports = {
-  startGame, giveClue, voteCard, voteSkip, handleVoterGone, markCard,
-  removePlayerMarks, endTurn, checkWin, finishGame, pauseGame, resumeGame,
-  returnToLobby
+  startGame, giveClue, editClue, voteCard, voteSkip, handleVoterGone,
+  endTurn, checkWin, finishGame, pauseGame, resumeGame, returnToLobby, toggleStop,
+  adminAddClue
 };

@@ -58,6 +58,9 @@
         <span class="code-chip">Комната: <b id="room-code"></b>
           <button id="copy-link" class="btn btn-ghost btn-xs" title="Скопировать ссылку-приглашение">🔗</button>
         </span>
+        <!-- Кнопка админ-меню: видна только в режиме /admin (показывает main.js).
+             Жёлтая обводка + фон как у карточек хедера (var(--bg-3)). -->
+        <button id="admin-btn" class="admin-btn hidden" title="Админ-меню">🛡️ Админ меню</button>
         <button id="settings-gear" class="chip-btn" title="Настройки и события">⚙️ Настроить игру</button>
         <span class="nick-wrap">
           <span class="nick-chip">
@@ -202,8 +205,15 @@
             <span>Доп. время за верный ответ (сек)</span>
             <input id="set-extra" class="input" type="number" min="0" max="999">
           </label>
-          <button id="save-settings" class="btn btn-secondary btn-block">Сохранить настройки</button>
+          <button id="save-settings" class="btn btn-secondary btn-block">💾 Сохранить и начать игру</button>
+          <!-- Та же «Перемешать команды», что и в лобби (task 2): дублируем в
+               настройки, чтобы хост мог пересобрать составы прямо отсюда. -->
+          <button id="shuffle-settings" class="btn btn-secondary btn-block">🔀 Перемешать команды</button>
           <button id="restart-game" class="btn btn-warning btn-block">🔄 Перезапустить игру</button>
+          <!-- Завершить текущую партию и вернуться в лобби (стартовый экран с
+               кнопками «Начать игру»/«Перемешать»). Только хост и только когда
+               партия идёт/завершена (task 2). -->
+          <button id="finish-game" class="btn btn-danger btn-block">🏁 Завершить игру</button>
         </div>
         <div class="panel log-panel">
           <h4>📜 События</h4>
@@ -235,6 +245,57 @@
         <button id="leave-confirm" class="btn btn-warning">Выйти</button>
       </div>
     </div>
+  </div>
+
+  <!-- Меню модерации при наведении на игрока (task 1): видно лидеру комнаты и
+       /admin. Плавающее (position:fixed) — позиционируется сбоку от строки игрока
+       через JS, чтобы не обрезалось overflow карточки команды. -->
+  <div id="player-menu" class="player-menu hidden">
+    <button class="pm-host">👑 Сделать админом</button>
+    <button class="pm-observer">👁 Переместить в наблюдатели</button>
+  </div>
+
+  <!-- Модалка админ-панели (task 2): доступна только в режиме /admin. -->
+  <div id="admin-modal" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3>🛡️ Админ-панель</h3>
+        <button id="admin-close" class="btn btn-ghost btn-sm">✕</button>
+      </div>
+      <div class="admin-section">
+        <h4>Добавить игрока</h4>
+        <div class="admin-row">
+          <button id="admin-add-red" class="btn btn-sm">＋ За красных</button>
+          <button id="admin-add-blue" class="btn btn-sm">＋ За синих</button>
+          <button id="admin-add-obs" class="btn btn-sm">＋ В наблюдатели</button>
+        </div>
+      </div>
+      <div class="admin-section">
+        <h4>Добавить ответ</h4>
+        <div class="admin-row">
+          <button id="admin-clue-red" class="btn btn-sm">💡 Ответ красным</button>
+          <button id="admin-clue-blue" class="btn btn-sm">💡 Ответ синим</button>
+        </div>
+      </div>
+      <div class="admin-section">
+        <h4>Имитация победы</h4>
+        <div class="admin-row">
+          <button id="admin-win-red" class="btn btn-sm">🏆 Победа красных</button>
+          <button id="admin-win-blue" class="btn btn-sm">🏆 Победа синих</button>
+        </div>
+      </div>
+      <div class="admin-section">
+        <h4>X-ray</h4>
+        <button id="admin-xray" class="btn btn-sm btn-block">👁 Включить X-ray</button>
+        <p class="muted-tiny">Показывает все цвета карт только вам, даже если вы агент.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Стоп-пауза (F9, task 3): полноэкранное затемнение с картинкой по центру.
+       Общая для всех в комнате (state.stopped). Видимость задаёт main.js. -->
+  <div id="stop-overlay" class="stop-overlay hidden" aria-hidden="true">
+    <img src="/assets/images/stop-game-dota-2.png" alt="Игра остановлена">
   </div>
 
   <!-- Контейнер уведомлений (тосты) -->

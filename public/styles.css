@@ -177,7 +177,18 @@ select.input {
    контентом скроллится внутри себя. Прижата вплотную к краю экрана, поэтому
    скругление снимается с той стороны, что касается края (см. .team-red/.team-blue
    ниже) — у края бордер прямой. */
-.team-block { position: relative; width: 100%; height: 100%; max-height: 600px; overflow-y: auto; border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--panel); display: flex; flex-direction: column; }
+/* Карточка САМА не скроллится (overflow:hidden): при большом числе игроков
+   скроллится только список участников внутри (.team-section ниже), а история
+   подсказок и подвал с кнопкой пропуска всегда остаются у нижней рамки. Иначе при
+   добавлении кружков голосов за пропуск контент перерастал 600px и у всей карточки
+   появлялся скролл (task 1). */
+.team-block { position: relative; width: 100%; height: 100%; max-height: 600px; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--panel); display: flex; flex-direction: column; }
+/* Список игроков — единственная гибкая (скроллящаяся) область карточки: flex-basis
+   0 + flex-grow 1 → секция занимает ВСЮ свободную высоту, не раздуваясь от числа
+   игроков, а лишние игроки уходят под собственный скролл (task 4). min-height:0
+   обязателен, иначе flex-элемент не сжимается ниже содержимого и скролл не включится.
+   История подсказок и подвал сохраняют свой размер и остаются прижатыми к низу. */
+.team-section { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; overflow-y: auto; }
 /* Весь реальный контент карточки — над фоновой цифрой (watermark лежит на z-index:0). */
 .team-block > *:not(.team-watermark) { position: relative; z-index: 1; }
 /* Красная — у левого края экрана: левый бордер прямой (скругление только справа),
@@ -228,10 +239,24 @@ select.input {
 /* Разделительная черта между капитаном и угадывающими. */
 .team-divider { height: 1px; background: #cccaca; margin: 10px 0; }
 .player-list { list-style: none; margin: 0; padding: 0; min-height: 8px; }
-.player-list li { padding: 4px 8px; border-radius: 6px; font-size: 14px; display:flex; justify-content:space-between; align-items:center; }
+.player-list li { padding: 4px 8px; border-radius: 6px; font-size: 14px; display:flex; justify-content:space-between; align-items:center; gap: 6px; }
 .player-list li.you { font-weight: 600; }
 .player-list li.offline { opacity: .45; }
-.player-name { display: inline-flex; align-items: center; gap: 8px; }
+/* min-width:0 обязателен, иначе flex-элемент не сжимается уже своего содержимого и
+   длинный ник раздувает строку → горизонтальный скролл карточки (task 3). */
+.player-name { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1 1 auto; }
+/* Ник: максимум 2 строки, дальше — многоточие (line-clamp). Полный ник — в тултипе
+   (title). word-break:break-word рвёт слишком длинное слово без пробелов (task 3). */
+.nick-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+  min-width: 0;
+}
+/* Корона хоста не сжимается и не срезается многоточием ника. */
+.host-crown { flex-shrink: 0; }
 /* Пометка «это вы» у строки текущего игрока (справа). */
 .you-tag { flex-shrink: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
 /* Кружок-аватар случайного цвета слева от ника игрока. */
@@ -239,8 +264,11 @@ select.input {
 
 /* ---------- Подвал карточки команды: ввод подсказки, история, пропуск ---------- */
 /* Подвал в самом низу карточки: история выше прижата к низу (margin-top:auto),
-   а этот подвал с кнопкой пропуска идёт сразу под ней — то есть в самом низу. */
-.team-footer { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+   а этот подвал с кнопкой пропуска идёт сразу под ней — то есть в самом низу.
+   flex-shrink:0 + min-height — подвалу гарантируется небольшое пространство, чтобы
+   голоса за пропуск хода активной команды были видны при любом числе участников и
+   не уходили под нижнюю рамку карточки (скроллится список игроков, а не подвал, task 2). */
+.team-footer { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; min-height: 26px; justify-content: flex-end; }
 /* Поле ввода подсказки капитаном (task 7): слово + «+» одной строкой. */
 /* Поле ввода живёт внизу блока истории (под списком слов) — небольшой отступ
    отделяет его от последней подсказки/черты. */
@@ -277,17 +305,34 @@ select.input {
    flex-колонке .team-block). Без карточек-фона: слово, а сразу справа от него —
    число-ориентир (task 2). */
 .clue-history-wrap { margin-top: auto; }
-/* Вместо заголовка «История подсказок» — черта во всю ширину карточки (выходит
-   за внутренние поля 12px отрицательными отступами), под ней появляются подсказки. */
-.clue-history-line { height: 1px; background: #cccaca; margin: 8px -12px; }
+/* Вместо заголовка «История подсказок» — черта над списком. Боковые отступы — как
+   у разделителя под лидером (.team-divider, margin 0): черта не выходит за
+   внутренние поля карточки, а стоит вровень с ним (task 1). */
+.clue-history-line { height: 1px; background: #cccaca; margin: 8px 0; }
 .clue-history { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 160px; overflow-y: auto; }
 .clue-history li {
   display: flex; align-items: baseline; gap: 6px;
   font-size: 14px; padding: 2px 2px;
 }
-.clue-history .ch-word { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Слово занимает только свою ширину (flex:0 1 auto, не растягивается), поэтому
+   число стоит сразу СПРАВА от слова, а не у дальнего края строки (task 2).
+   min-width:0 + ellipsis — длинное слово обрезается многоточием, не ломая строку. */
+.clue-history .ch-word { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; min-width: 0; }
 /* Число — сразу за словом, приглушённым цветом, без кружка-фона. */
 .clue-history .ch-num { flex-shrink: 0; color: var(--muted); font-weight: 700; font-size: 13px; }
+/* Карандаш редактирования прижимаем к правому краю строки (слово+число — слева). */
+.clue-history .clue-edit { margin-left: auto; }
+/* Карандаш редактирования подсказки (task 1): виден капитану своей команды в игре.
+   Текстовая кнопка без фона, прижата к правому краю строки. */
+.clue-edit, .clue-edit-save, .clue-edit-cancel {
+  flex-shrink: 0; background: none; border: none; cursor: pointer;
+  color: var(--muted); font-family: inherit; font-size: 13px; line-height: 1; padding: 0 4px;
+}
+.clue-edit:hover, .clue-edit-save:hover, .clue-edit-cancel:hover { color: var(--text); }
+/* Строка истории в режиме правки: поле ввода тянется, кнопки ✓/✕ — справа. */
+.clue-history li.editing { align-items: center; }
+.clue-edit-input { flex: 1 1 auto; min-width: 0; margin: 0; border-radius: 0; font-size: 13px; padding: 2px 6px; }
+.clue-edit-input.invalid { border-color: var(--red) !important; }
 /* Кнопка «Пропустить ход» — голосование (task 1): простой текст без рамки и фона
    (цвет #cccaca), кружки проголосовавших под ней и 2-сек лоадер при единогласии.
    Мой голос подчёркиваем и подсвечиваем цветом текста. */
@@ -355,7 +400,7 @@ select.input {
    равные ряды (grid-auto-rows:1fr) гарантируют, что ВСЕ карты одинакового размера
    независимо от длины слова и переносов — иначе flex-перенос делал ряды разной
    высоты по содержимому.
-   Дополнительно размер самой карты ограничен сверху 158.03×96.02px (см. .cell):
+   Дополнительно размер самой карты ограничен сверху 170×96.02px (см. .cell):
    ячейка тянется в своём 1fr-треке, но не выходит за этот потолок и центрируется
    в треке, если тот шире/выше потолка. align-content:center центрирует ряды,
    когда суммарная высота карт меньше 600. */
@@ -369,11 +414,15 @@ select.input {
   grid-auto-rows: 1fr;
   justify-content: center;
   align-content: center;
-  gap: 24px;
+  gap: 18px;
 }
 /* Число колонок по размеру поля: 5 для 5×5, 6 для 6×6. */
 .board.size-5 { grid-template-columns: repeat(5, 1fr); }
-.board.size-6 { grid-template-columns: repeat(6, 1fr); }
+/* У 6×6 ширину карт ограничивала рамка 910px (≈131px на карту против ≈158px у
+   5×5). Поднимаем потолок рамки до 1030px (910 + 6×20 + запас на gap), чтобы
+   каждая карта стала примерно на 20px шире. Потолок самой карты (170px у .cell)
+   при этом не достигается. */
+.board.size-6 { grid-template-columns: repeat(6, 1fr); max-width: 1030px; }
 /* Текст ожидания старта — крупнее обычного, чтобы заметнее читался на пустом поле. */
 .board-waiting { font-size: 22px; }
 .cell {
@@ -383,11 +432,11 @@ select.input {
      под длинное слово и сломать равенство ячеек. */
   min-width: 0;
   /* Карта тянется в своём 1fr-треке (width/height:100%), но не превышает потолок
-     158.03×96.02px. Если трек шире/выше потолка — justify-self/align-self:center
+     170×96.02px. Если трек шире/выше потолка — justify-self/align-self:center
      центрируют карту в треке (равные зазоры), вместо растягивания за потолок. */
   width: 100%;
   height: 100%;
-  max-width: 158.03px;
+  max-width: 170px;
   max-height: 96.02px;
   justify-self: center;
   align-self: center;
@@ -405,7 +454,7 @@ select.input {
   cursor: default;
   font-weight: 700;
   text-transform: uppercase;
-  font-size: clamp(12px, 1.7vw, 24px);
+  font-size: 23px;
   line-height: 1.05;
   user-select: none;
   transition: transform .08s, box-shadow .12s;
@@ -487,15 +536,6 @@ select.input {
   width: 13px; height: 13px; border-radius: 50%;
   box-shadow: 0 0 4px rgba(0,0,0,.55);
 }
-/* Клики ожидающей команды (task 5) — те же кружки .vote-dot, но в нижне-левом
-   углу карты, чтобы не накладываться на голоса соперника (.vote-dots, верх-право). */
-.mark-dots {
-  position: absolute; bottom: 4px; left: 4px;
-  display: flex; flex-wrap: wrap; gap: 3px; justify-content: flex-start;
-  max-width: 75%; pointer-events: none;
-}
-/* Свой клик слегка выделяем белым ободком (как ориентир «это я»). */
-.mark-dots .vote-dot.mine { box-shadow: 0 0 0 2px #fff, 0 0 4px rgba(0,0,0,.55); }
 /* 1.5-сек лоадер снизу карты при единогласии (синхронно с VOTE_COUNTDOWN_MS). */
 /* Лоадер прижат к самому низу карты во всю её ширину (касается нижней рамки),
    без боковых отступов; квадратные углы обрезает overflow:hidden карты. */
@@ -514,7 +554,11 @@ select.input {
 .panel h4 { margin: 0 0 10px; font-size: 15px; }
 .field { display: block; margin-bottom: 10px; font-size: 13px; color: var(--muted); }
 .log-panel { display: flex; flex-direction: column; min-height: 0; }
-.log { list-style: none; margin: 0; padding: 0; overflow-y: auto; font-size: 13px; max-height: 360px; }
+/* События растянуты на всю высоту карточки модалки: панель-колонка тянется до
+   высоты соседней колонки настроек (grid align-items:stretch), а список забирает
+   всю её свободную высоту (flex:1 1 0) без потолка по высоте — переполнение уходит
+   в собственный скролл (min-height:0 обязателен, иначе flex-элемент не сжимается). */
+.log { list-style: none; margin: 0; padding: 0; overflow-y: auto; font-size: 13px; flex: 1 1 0; min-height: 0; }
 .log li { padding: 4px 0; border-bottom: 1px solid var(--bg-3); color: var(--muted); }
 .log li:first-child { color: var(--text); }
 
@@ -584,6 +628,52 @@ select.input {
 @keyframes toastIn  { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 @keyframes toastOut { to { transform: translateX(120%); opacity: 0; } }
 @keyframes toastLoad { from { width: 100%; } to { width: 0%; } }
+
+/* ---------- Админ-режим (/admin): кнопка, меню модерации, панель ---------- */
+/* Кнопка «Админ меню» в шапке: фон как у карточек хедера (var(--bg-3)), жёлтая
+   обводка (var(--warning)). Видна только в режиме /admin (класс hidden снимает JS). */
+.admin-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--bg-3); border: 1px solid var(--warning);
+  color: var(--warning); padding: 5px 12px; border-radius: 8px;
+  font-size: 13px; font-family: inherit; cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.admin-btn:hover { background: var(--warning); color: #1a1305; }
+
+/* Меню модерации при наведении на игрока (task 1). Плавающее (fixed) — не
+   обрезается overflow карточки команды; позиционируется из JS (showPlayerMenu). */
+.player-menu {
+  position: fixed; z-index: 70;
+  display: flex; flex-direction: column; gap: 4px;
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px; box-shadow: var(--shadow);
+  min-width: 180px;
+}
+.player-menu button {
+  background: none; border: none; color: var(--text);
+  font-family: inherit; font-size: 13px; text-align: left;
+  padding: 6px 8px; border-radius: 6px; cursor: pointer; white-space: nowrap;
+}
+.player-menu button:hover { background: var(--bg-3); }
+
+/* Секции админ-панели (модалка #admin-modal). */
+.admin-section { margin-top: 16px; }
+.admin-section h4 { margin: 0 0 8px; font-size: 14px; }
+.admin-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.admin-row .btn { flex: 1 1 auto; }
+
+/* Стоп-пауза (F9, task 3): полноэкранное затемнение поверх ВСЕГО (включая модалки
+   z-index:50 и тосты z-index:80) с картинкой по центру. Перехватывает клики, пока
+   видна — игра «заморожена» и для глаз, и для рук. */
+.stop-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(0, 0, 0, .85);
+  display: flex; align-items: center; justify-content: center;
+  /* Появление мгновенное (без fade-in) — пауза должна включаться сразу. */
+}
+/* Картинка стоп-паузы — небольшая (исходно было 80vw/80vh, уменьшена вчетверо). */
+.stop-overlay img { max-width: 20vw; max-height: 20vh; object-fit: contain; }
 
 /* ---------- Responsive ---------- */
 @media (max-width: 900px) {

@@ -8,6 +8,7 @@
  */
 
 import { $, $$ } from './util/dom.js';
+import { IS_ADMIN } from './util/admin.js';
 import { DEFAULTS, WORDS } from './config.js';
 import { LS } from './storage/localStore.js';
 import { IN, OUT } from './net/messages.js';
@@ -87,7 +88,7 @@ function handleRoomError(message) {
 // ---------- Действия входа ----------
 /** Создаёт комнату с дефолтными настройками. @returns {void} */
 function createRoom() {
-  connect(() => send({ type: IN.CREATE_ROOM, playerId, nickname: LS.nick, settings: DEFAULTS }));
+  connect(() => send({ type: IN.CREATE_ROOM, playerId, nickname: LS.nick, settings: DEFAULTS, admin: IS_ADMIN }));
 }
 /**
  * Входит в комнату по коду.
@@ -102,7 +103,9 @@ function createRoom() {
 function joinRoom(code, manual = false) {
   manualJoin = manual;
   $('#home-error').textContent = '';
-  connect(() => send({ type: IN.JOIN_ROOM, code: code.toUpperCase(), playerId, nickname: LS.nick }));
+  // Флаг admin шлём только на первом входе; авто-переподключение (socket.js) его
+  // не несёт, но сервер сохраняет право на игроке (roomService.addPlayer).
+  connect(() => send({ type: IN.JOIN_ROOM, code: code.toUpperCase(), playerId, nickname: LS.nick, admin: IS_ADMIN }));
 }
 
 // ---------- Рендер ----------
@@ -139,6 +142,8 @@ function render() {
     renderWin();
   }
   renderStatus();   // таймер обновляется каждую секунду
+  renderStop();     // оверлей F9-стоп-паузы (вне структурной сигнатуры — мгновенно)
+  renderAdmin();    // подпись кнопки X-ray (в режиме /admin)
   handleSound(state);
 
   // Звук отправки подсказки лидером: считаем подсказки в истории обеих команд;
@@ -151,6 +156,30 @@ function render() {
 
   prevHostId = state.hostId;
   prevSpyInGame = spyInGame;
+}
+
+/**
+ * Показывает/прячет оверлей F9-«стоп-паузы» (task 3) по общему флагу state.stopped.
+ * Вызывается на каждом кадре (вне структурной сигнатуры), чтобы реагировать
+ * мгновенно. Текст кнопки X-ray в админ-модалке обновляется отдельно (renderAdmin).
+ * @returns {void}
+ */
+function renderStop() {
+  const state = getState();
+  $('#stop-overlay').classList.toggle('hidden', !(state && state.stopped));
+}
+
+/**
+ * Обновляет состояние элементов админ-режима: подпись кнопки X-ray по флагу
+ * state.xray. Сама кнопка «Админ меню» показывается один раз при входе (см. init).
+ * @returns {void}
+ */
+function renderAdmin() {
+  if (!IS_ADMIN) return;
+  const state = getState();
+  const on = !!(state && state.xray);
+  $('#admin-xray').textContent = on ? '🙈 Выключить X-ray' : '👁 Включить X-ray';
+  $('#admin-xray').classList.toggle('btn-warning', on);
 }
 
 // ---------- Привязка событий ----------
@@ -193,9 +222,23 @@ function bindEvents() {
   // Одна кнопка паузы-переключателя: шлёт RESUME, если уже на паузе, иначе PAUSE.
   $('#pause-btn').addEventListener('click', () => send({ type: getState().paused ? IN.RESUME : IN.PAUSE }));
   $('#shuffle-btn').addEventListener('click', () => send({ type: IN.SHUFFLE_TEAMS }));
-  $('#save-settings').addEventListener('click', () => send({ type: IN.UPDATE_SETTINGS, settings: readSettingsForm() }));
+  // Дублёр «Перемешать команды» из модалки настроек (task 2) — то же сообщение.
+  $('#shuffle-settings').addEventListener('click', () => send({ type: IN.SHUFFLE_TEAMS }));
+  // «Сохранить и начать игру»: одним сообщением применяем настройки из формы и
+  // (пере)запускаем партию с ними — работает и в лобби, и во время игры (сервер
+  // применит настройки перед startGame). Закрываем модалку, чтобы показать поле.
+  $('#save-settings').addEventListener('click', () => {
+    send({ type: IN.NEW_GAME, words: WORDS, settings: readSettingsForm() });
+    $('#settings-modal').classList.add('hidden');
+  });
   // Перезапуск партии из модалки настроек — та же логика, что «Новая игра».
   $('#restart-game').addEventListener('click', () => send({ type: IN.NEW_GAME, words: WORDS }));
+  // Завершить партию и вернуться в лобби (та же логика, что «В лобби»). Закрываем
+  // модалку, чтобы открыть стартовый экран с кнопками начала игры (task 2).
+  $('#finish-game').addEventListener('click', () => {
+    send({ type: IN.BACK_TO_LOBBY });
+    $('#settings-modal').classList.add('hidden');
+  });
 
   // team/role buttons (действуют в лобби и на паузе — сервер тоже это проверяет)
   $$('.btn-team').forEach(btn => {
@@ -216,10 +259,42 @@ function bindEvents() {
 
   // Закрытие модалок кликом вне их области (по затемнённому фону). Срабатывает
   // только если клик пришёлся на сам оверлей, а не на его содержимое (modal-box).
-  ['#settings-modal', '#nick-modal', '#leave-modal'].forEach(sel => {
+  ['#settings-modal', '#nick-modal', '#leave-modal', '#admin-modal'].forEach(sel => {
     const overlay = $(sel);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.add('hidden'); });
   });
+
+  // F9 — общая «стоп-пауза» с картинкой (task 3): переключатель для всех в
+  // комнате. Шлём только когда игрок уже в комнате (есть состояние).
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'F9') { e.preventDefault(); if (getState()) send({ type: IN.TOGGLE_STOP }); }
+  });
+
+  bindAdminActions();
+}
+
+/**
+ * Навешивает обработчики админ-панели (task 2). DOM кнопок статичен, поэтому
+ * привязка одноразовая. Все действия защищены и на сервере (проверка player.admin).
+ * @returns {void}
+ */
+function bindAdminActions() {
+  $('#admin-btn').addEventListener('click', () => $('#admin-modal').classList.remove('hidden'));
+  $('#admin-close').addEventListener('click', () => $('#admin-modal').classList.add('hidden'));
+  // Добавить бота за команду/наблюдателем.
+  $('#admin-add-red').addEventListener('click', () => send({ type: IN.ADMIN_ADD_PLAYER, team: 'red' }));
+  $('#admin-add-blue').addEventListener('click', () => send({ type: IN.ADMIN_ADD_PLAYER, team: 'blue' }));
+  $('#admin-add-obs').addEventListener('click', () => send({ type: IN.ADMIN_ADD_PLAYER, team: null }));
+  // Добавить подсказку в историю команды. Подсказка появляется в блоке истории
+  // карточки команды (мелким текстом внизу), поэтому даём админу мгновенный
+  // локальный тост-подтверждение, чтобы действие было заметно.
+  $('#admin-clue-red').addEventListener('click', () => { send({ type: IN.ADMIN_ADD_CLUE, team: 'red' }); showToast('💡 Ответ добавлен красным'); });
+  $('#admin-clue-blue').addEventListener('click', () => { send({ type: IN.ADMIN_ADD_CLUE, team: 'blue' }); showToast('💡 Ответ добавлен синим'); });
+  // Имитация победы команды.
+  $('#admin-win-red').addEventListener('click', () => send({ type: IN.ADMIN_WIN, team: 'red' }));
+  $('#admin-win-blue').addEventListener('click', () => send({ type: IN.ADMIN_WIN, team: 'blue' }));
+  // Переключить личный X-ray (подпись кнопки обновит renderAdmin по state.xray).
+  $('#admin-xray').addEventListener('click', () => send({ type: IN.ADMIN_XRAY }));
 }
 
 // ---------- Сценарии входа/выхода ----------
@@ -271,6 +346,8 @@ function cleanUrl() {
 function init() {
   setMessageHandler(handleMessage);
   bindEvents();
+  // В режиме /admin показываем кнопку админ-меню (она в шапке экрана комнаты).
+  if (IS_ADMIN) $('#admin-btn').classList.remove('hidden');
   pendingRoom = (new URLSearchParams(location.search).get('room') || '').toUpperCase();
 
   if (LS.nick) {

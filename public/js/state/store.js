@@ -29,17 +29,16 @@ export function structuralSig() {
     phase: state.phase,
     cur: state.currentTeam,
     clue: state.clue,
-    // Длины историй подсказок — чтобы карточки команд перерисовывались при
-    // появлении новой подсказки (таймер по-прежнему вне сигнатуры).
-    clueHist: state.clueHistory ? [state.clueHistory.red.length, state.clueHistory.blue.length] : null,
+    // Полные истории подсказок — чтобы карточки перерисовывались не только при
+    // появлении новой подсказки, но и при РЕДАКТИРОВАНИИ существующей (task 1:
+    // капитан правит своё слово/число). Таймер по-прежнему вне сигнатуры.
+    clueHist: state.clueHistory ? [state.clueHistory.red, state.clueHistory.blue] : null,
     // Голоса агентов и идущий отсчёт (task 1) — чтобы кружки и лоадер появлялись/
     // исчезали при изменении голосования (таймер по-прежнему вне сигнатуры).
     votes: state.votes,
     pendingVote: state.pendingVote,
-    // Клики ожидающей команды (task 5) — чтобы кружки появлялись/исчезали при
-    // изменении (как и голоса; таймер по-прежнему вне сигнатуры).
-    marks: state.marks,
     paused: state.paused,
+    stopped: state.stopped,
     winner: state.winner,
     host: state.hostId,
     you: state.you,
