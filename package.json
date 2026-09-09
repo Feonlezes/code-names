@@ -6,8 +6,11 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
+    "play": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/play.ps1",
+    "play:lhr": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/play.ps1 -Provider lhr",
     "tunnel": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/tunnel.ps1",
-    "tunnel:cf": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/tunnel-cf.ps1"
+    "tunnel:cf": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/tunnel-cf.ps1",
+    "tunnel:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/tunnel-stop.ps1"
   },
   "dependencies": {
     "ws": "^8.18.0"

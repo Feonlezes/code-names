@@ -11,10 +11,14 @@
     предпочтительный туннель для игры. WebSocket (wss), нужный игре, работает
     штатно: клиент сам поднимает wss поверх https (см. public/js/net/socket.js).
 
-    Скрипт: (1) находит cloudflared (PATH или стандартный путь установки);
-    (2) проверяет, что сервер слушает порт; (3) запускает quick-туннель;
-    (4) вытаскивает из его вывода адрес *.trycloudflare.com; (5) печатает домен и
-    ссылку с ?room=; (6) держит туннель живым, пока окно открыто (Ctrl+C — стоп).
+    Скрипт: (1) гасит туннель прошлого запуска, если тот остался висеть;
+    (2) находит cloudflared (PATH или стандартный путь установки); (3) проверяет,
+    что сервер слушает порт; (4) запускает quick-туннель; (5) вытаскивает из его
+    вывода адрес *.trycloudflare.com; (6) печатает домен и ссылку с ?room=;
+    (7) держит туннель живым, пока окно открыто (Ctrl+C — стоп).
+
+    Поднимает только туннель — сервер должен работать отдельно (`npm start`).
+    Одной командой сразу и сервер, и туннель поднимает `npm run play`.
 
 .PARAMETER Port
     Локальный порт сервера. По умолчанию 3000 (как в `npm start`).
@@ -39,6 +43,15 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+. (Join-Path $PSScriptRoot 'lib\tunnel.common.ps1')
+Set-ConsoleUtf8
+
+# Туннель прошлого запуска мог остаться в фоне (окно закрыли крестиком) — его
+# адрес всё равно уже не нужен, а живой процесс только путает картину.
+if (Stop-TrackedProcess -Name 'tunnel' -Port $Port) {
+    Write-Host "Погашен туннель прошлого запуска." -ForegroundColor DarkGray
+}
+
 # cloudflared обязателен. Ищем его сначала в PATH, затем по стандартному пути
 # установки winget (PATH мог не обновиться сразу после установки) — даём
 # понятную ошибку с командой установки, если не нашли.
@@ -56,10 +69,9 @@ if (-not $cf) {
 
 # Туннель проброса не имеет смысла, если сервер не запущен: друг увидит пустоту.
 # Это не блокирующая ошибка (сервер можно поднять параллельно), а предупреждение.
-$listening = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
-if (-not $listening) {
+if (-not (Test-PortListening -Port $Port)) {
     Write-Host "ВНИМАНИЕ: на порту $Port никто не слушает." -ForegroundColor Yellow
-    Write-Host "Запусти сервер в другом окне: npm start" -ForegroundColor Yellow
+    Write-Host "Запусти сервер в другом окне: npm start (или сразу всё: npm run play)" -ForegroundColor Yellow
     Write-Host ""
 }
 
@@ -76,59 +88,44 @@ Write-Host "Поднимаю туннель Cloudflare для localhost:$Port ..
 $cfArgs = @('tunnel', '--url', "http://localhost:$Port")
 $proc = Start-Process -FilePath $cf -PassThru -WindowStyle Hidden `
     -ArgumentList $cfArgs -RedirectStandardOutput $log -RedirectStandardError $err
+Save-TrackedProcess -Name 'tunnel' -Port $Port -Process $proc -Marker "http://localhost:$Port"
 
-# Опрашиваем оба лога до 30 сек: адрес появляется в рамке вида
+# Адрес появляется в рамке вида
 # "Your quick Tunnel has been created! ... https://<rand>.trycloudflare.com".
-$url = $null
-for ($i = 0; $i -lt 30; $i++) {
-    Start-Sleep -Seconds 1
-    if ($proc.HasExited) { break }
-    $m = Select-String -Path $err, $log -Pattern 'https://[a-z0-9-]+\.trycloudflare\.com' -ErrorAction SilentlyContinue |
-        Select-Object -First 1
-    if ($m) { $url = $m.Matches[0].Value; break }
-}
+$url = Wait-TunnelUrl -Process $proc -LogPaths @($err, $log) -Pattern 'https://[a-z0-9-]+\.trycloudflare\.com'
 
 if (-not $url) {
     Write-Host "Не удалось получить адрес туннеля." -ForegroundColor Red
     if (Test-Path $err) { Get-Content $err | Write-Host -ForegroundColor DarkGray }
-    if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
+    Stop-TrackedProcess -Name 'tunnel' -Port $Port | Out-Null
     exit 1
 }
 
-# Готовая ссылка: домен + /?room=. С -Room подставляем код, иначе плейсхолдер.
-$link = if ($Room) { "$url/?room=$Room" } else { "$url/?room=КОД" }
+# Свежий адрес первые секунды отдаёт ошибку, пока маршрут не разошёлся по edge
+# Cloudflare. Проверяем сами, чтобы не отправить другу нерабочую ссылку.
+Write-Host "Проверяю публичную ссылку ..." -ForegroundColor Cyan
+$publicOk = Wait-HttpOk -Url $url -TimeoutSec 45
 
-# Кликабельная ссылка в терминале через OSC 8 hyperlink:
-#   ESC ]8;;<URL> ESC \  <текст>  ESC ]8;; ESC \
-# Поддерживают Windows Terminal и встроенный терминал VS Code. В терминалах без
-# поддержки последовательность не печатается как мусор — показывается просто текст.
-# Кликом открываем именно домен (без КОД-плейсхолдера, иначе ведёт в битую комнату);
-# при заданном -Room кликабельна полная ссылка с кодом.
-$esc = [char]27
-function Format-Link([string]$text, [string]$target) {
-    "$esc]8;;$target$esc\$text$esc]8;;$esc\"
+Write-TunnelLinks -Url $url -Room $Room
+
+if ($publicOk) {
+    Write-Host "  Ссылка проверена: отвечает игрой (HTTP 200)." -ForegroundColor Green
 }
-$clickTarget = if ($Room) { $link } else { $url }
-$clickable = Format-Link $clickTarget $clickTarget
-
-Write-Host ""
-Write-Host "  Домен туннеля: " -ForegroundColor Green -NoNewline
-Write-Host (Format-Link $url $url) -ForegroundColor Green
-Write-Host "  Ссылка другу:  $link" -ForegroundColor Green
-Write-Host "  Открыть/скопировать: " -ForegroundColor Green -NoNewline
-Write-Host $clickable -ForegroundColor Green
-if (-not $Room) {
-    Write-Host "  (подставь вместо КОД 4 символа из шапки «Комната»)" -ForegroundColor DarkGray
+else {
+    Write-Host "  ВНИМАНИЕ: ссылка пока не отвечает — проверь, что сервер запущен (npm start)." -ForegroundColor Yellow
 }
 Write-Host ""
 Write-Host "Туннель работает. НЕ закрывай это окно. Ctrl+C — остановить." -ForegroundColor Cyan
 
-# Держим скрипт живым, пока жив cloudflared. Закрытие окна/Ctrl+C — глушим
-# туннель, чтобы не оставлять висящий процесс.
+# Гашение cloudflared продублировано на событие выхода PowerShell: при Ctrl+C
+# блок finally отработать не успевает. Закрытие окна крестиком не покрывает ни
+# то, ни другое — там висяк снимет очистка при следующем запуске (или tunnel:stop).
+Register-TrackedCleanup -Tracked @{ tunnel = $proc.Id } -Port $Port
+
 try {
     Wait-Process -Id $proc.Id
 }
 finally {
-    if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
+    Stop-TrackedProcess -Name 'tunnel' -Port $Port -ExpectedId $proc.Id | Out-Null
     Write-Host "Туннель остановлен." -ForegroundColor Yellow
 }
