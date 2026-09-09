@@ -43,6 +43,12 @@ function armTimer(room, ctx) {
  * Обрабатывает истечение времени фазы: и в подсказке, и в угадывании ход
  * переходит другой команде.
  *
+ * Граничный случай угадывания: если в момент истечения общего таймера уже идёт
+ * 1.5-сек отсчёт единогласного решения (агенты сошлись на карте/пропуске, но
+ * VOTE_COUNTDOWN_MS ещё не вышел), это решение засчитывается, а не теряется —
+ * иначе выбранное командой слово не успело бы открыться. applyVote сам погасит
+ * незавершённый отсчёт (через resetVotes) и применит выбор.
+ *
  * @param {import('../core/model').Room} room
  * @param {EngineCtx} ctx
  * @returns {void}
@@ -52,6 +58,11 @@ function onTimeout(room, ctx) {
     addLog(room, `⏱ Капитан команды ${teamName(room.currentTeam)} не успел дать подсказку — ход переходит.`);
     endTurn(room, ctx);
   } else if (room.phase === 'guess') {
+    if (room.pendingVote) {
+      addLog(room, `⏱ Время вышло, но команда ${teamName(room.currentTeam)} уже сделала выбор — он засчитан.`);
+      applyVote(room, ctx);
+      return;
+    }
     addLog(room, `⏱ Время угадывания вышло — ход переходит.`);
     endTurn(room, ctx);
   }
