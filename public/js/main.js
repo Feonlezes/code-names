@@ -55,6 +55,7 @@ function handleMessage(msg) {
   if (msg.type === OUT.ERROR) { handleRoomError(msg.message); return; }
   if (msg.type === OUT.JOINED) {
     manualJoin = false;       // успешный вход — последующие сбои уже «тихие»
+    clearBootFallback();
     LS.room = msg.code;
     // Сразу отражаем комнату в адресной строке — ссылку можно скопировать/
     // отправить из URL без открытия меню (в т. ч. сразу после создания комнаты).
@@ -128,6 +129,7 @@ function handleUpdateStatus(msg) {
 function handleRoomError(message) {
   const wasManual = manualJoin;
   manualJoin = false;
+  clearBootFallback();
   LS.room = '';                 // прекращаем авто-переподключение к мёртвой комнате
   closeSocket();
   setState(null); resetSig();
@@ -155,8 +157,8 @@ function createRoom() {
 function joinRoom(code, manual = false) {
   manualJoin = manual;
   $('#home-error').textContent = '';
-  // Флаг admin шлём только на первом входе; авто-переподключение (socket.js) его
-  // не несёт, но сервер сохраняет право на игроке (roomService.addPlayer).
+  // Флаг admin идёт при каждом входе, включая авто-переподключение (socket.js):
+  // права выдаются по флагу на входе (roomService.addPlayer).
   connect(() => send({ type: IN.JOIN_ROOM, code: code.toUpperCase(), playerId, nickname: LS.nick, admin: IS_ADMIN }));
 }
 
@@ -393,6 +395,28 @@ function logout() {
   $('#login-nick').focus();
 }
 
+// Страховка от «залипания» на экране загрузки: если вход так и не состоялся
+// (сервер недоступен, ссылка на мёртвую комнату), уводим туда, где пользователь
+// может действовать сам. Успевший позже прийти JOINED всё равно откроет комнату.
+const BOOT_FALLBACK_MS = 10000;
+let bootTimer = null;
+
+/** Вооружает страховку ухода с экрана загрузки. @returns {void} */
+function armBootFallback() {
+  clearTimeout(bootTimer);
+  bootTimer = setTimeout(() => {
+    if (!$('#screen-boot').classList.contains('active')) return;
+    if (LS.nick) show('screen-home');
+    else { show('screen-login'); $('#login-nick').focus(); }
+  }, BOOT_FALLBACK_MS);
+}
+
+/** Снимает страховку экрана загрузки. @returns {void} */
+function clearBootFallback() {
+  clearTimeout(bootTimer);
+  bootTimer = null;
+}
+
 /** Убирает query-параметры из URL (после обработки приглашения). @returns {void} */
 function cleanUrl() {
   try { history.replaceState({}, '', location.pathname); } catch (_) {}
@@ -418,11 +442,20 @@ function init() {
   if (LS.nick) {
     $('#login-nick').value = LS.nick;
     $('#home-nick').textContent = LS.nick;
-    if (pendingRoom) { show('screen-home'); joinRoom(pendingRoom, true); cleanUrl(); pendingRoom = ''; }
-    // Флаг admin нужен и при тихом восстановлении сессии: сервер выдаёт права
-    // по нему на каждом входе, иначе после перезагрузки страницы админ-режим
-    // остался бы только в интерфейсе, а действия молча не срабатывали.
-    else if (LS.room) { show('screen-room'); connect(() => send({ type: IN.JOIN_ROOM, code: LS.room, playerId, nickname: LS.nick, admin: IS_ADMIN })); }
+    // Код в адресе — это либо чужая ссылка-приглашение, либо своя же комната:
+    // при входе клиент сам прописывает ?room=КОД, и после перезагрузки код
+    // совпадает с сохранённым. Во втором случае вход считается восстановлением
+    // сессии (тихим), поэтому неудача не показывает текст ошибки.
+    const invited = pendingRoom && pendingRoom !== LS.room;
+    const code = pendingRoom || LS.room;
+    if (code) {
+      // Остаёмся на экране загрузки, пока идёт вход: экран комнаты покажет
+      // обработчик JOINED, а при неудаче handleRoomError уведёт в меню.
+      joinRoom(code, invited);
+      armBootFallback();
+      cleanUrl();
+      pendingRoom = '';
+    }
     else show('screen-home');
   } else {
     show('screen-login');

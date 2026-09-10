@@ -11,6 +11,7 @@
 const { randomCode, randomInt, shuffle } = require('../core/rng');
 const { createRoomObject, addLog } = require('../core/model');
 const timer = require('./timerService');
+const { ROOM_GRACE_MS } = require('../config');
 
 /** @type {Map<string, import('../core/model').Room>} code -> room */
 const rooms = new Map();
@@ -70,6 +71,9 @@ function addPlayer(room, playerId, nickname, isAdmin) {
     if (nickname) room.players[playerId].nickname = nickname;
   }
   if (isAdmin) room.players[playerId].admin = true;
+  // Игрок в комнате — снимаем отсрочку удаления, если она была вооружена
+  // (комната опустела, но кто-то вернулся или зашёл новый).
+  timer.clearExpiry(room);
 }
 
 /**
@@ -190,20 +194,54 @@ function reassignHost(room) {
 }
 
 /**
- * Удаляет комнату, если в ней не осталось подключённых игроков. Освобождает
- * таймер-ресурс (см. CLAUDE.md §2.5).
+ * Есть ли в комнате хотя бы один живой игрок. Боты «подключены» навсегда (у них
+ * нет сокета), поэтому их НЕ учитываем — иначе комната с одними ботами никогда
+ * не удалялась бы после ухода всех людей.
+ *
+ * @param {import('../core/model').Room} room
+ * @returns {boolean}
+ */
+function hasConnectedPlayers(room) {
+  return Object.values(room.players).some(p => p.connected && !p.bot);
+}
+
+/**
+ * Удаляет комнату из реестра, освобождая все её ресурсы: пофазный таймер,
+ * отсчёт голосования и отсрочку удаления (см. CLAUDE.md §2.5).
  *
  * @param {import('../core/model').Room} room
  * @returns {void}
  */
-function maybeCleanup(room) {
-  // Боты «подключены» навсегда (нет сокета), поэтому их НЕ учитываем — иначе
-  // комната с одними ботами никогда не удалялась бы после ухода всех людей.
-  const anyConnected = Object.values(room.players).some(p => p.connected && !p.bot);
-  if (!anyConnected) {
-    timer.clearTimer(room);
-    rooms.delete(room.code);
+function destroyRoom(room) {
+  timer.clearTimer(room);
+  timer.clearCountdown(room);
+  timer.clearExpiry(room);
+  rooms.delete(room.code);
+}
+
+/**
+ * Убирает опустевшую комнату. При обрыве связи удаление идёт не сразу, а через
+ * отсрочку ROOM_GRACE_MS: перезагрузка страницы разрывает сокет, и единственный
+ * игрок иначе терял бы комнату за время обновления вкладки. По истечении
+ * отсрочки состав проверяется заново. Явный выход (`immediate`) ждать не должен:
+ * игрок ушёл сознательно и не вернётся.
+ *
+ * Если игроки в комнате есть, ранее вооружённая отсрочка снимается.
+ *
+ * @param {import('../core/model').Room} room
+ * @param {boolean} [immediate] - удалить сразу, не давая отсрочки
+ * @returns {void}
+ */
+function maybeCleanup(room, immediate) {
+  if (hasConnectedPlayers(room)) {
+    timer.clearExpiry(room);
+    return;
   }
+  if (immediate) { destroyRoom(room); return; }
+  timer.startExpiry(room, ROOM_GRACE_MS, () => {
+    // За время отсрочки кто-то мог вернуться — проверяем состав заново.
+    if (!hasConnectedPlayers(room)) destroyRoom(room);
+  });
 }
 
 /**

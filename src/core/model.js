@@ -46,6 +46,7 @@
  * @property {Set<*>} _sockets   - внутреннее: активные сокеты (не сериализуется)
  * @property {*} _interval        - внутреннее: дескриптор таймера (не сериализуется)
  * @property {*} _voteTimeout     - внутреннее: дескриптор отсчёта голосования (не сериализуется)
+ * @property {*} _expiryTimeout   - внутреннее: дескриптор отсрочки удаления опустевшей комнаты (не сериализуется)
  */
 
 const { DEFAULT_SETTINGS } = require('../config');
@@ -90,7 +91,8 @@ function createRoomObject(code, hostId, settings) {
     log: [],
     _sockets: new Set(),
     _interval: null,
-    _voteTimeout: null
+    _voteTimeout: null,
+    _expiryTimeout: null
   };
 }
 

@@ -11,8 +11,19 @@
 </head>
 <body>
 
+  <!-- Экран загрузки: активен в разметке, потому что модуль js/main.js
+       отложенный, и до его выполнения браузер успевает нарисовать страницу.
+       Раньше в разметке был активен экран входа, и при перезагрузке в комнате
+       мелькали сначала ввод никнейма, потом меню. Куда идти дальше, решает init. -->
+  <div id="screen-boot" class="screen active">
+    <div class="boot-box">
+      <div class="boot-logo">🕵️</div>
+      <div class="boot-spinner"></div>
+    </div>
+  </div>
+
   <!-- Экран входа -->
-  <div id="screen-login" class="screen active">
+  <div id="screen-login" class="screen">
     <div class="card-box">
       <h1>🕵️ Codenames</h1>
       <p class="muted">Введите никнейм, чтобы начать</p>

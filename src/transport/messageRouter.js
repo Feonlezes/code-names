@@ -255,7 +255,8 @@ function handleLeave(ws, room) {
   gameEngine.handleVoterGone(room, ws.playerId, ctx);
   ws.roomCode = null;
   broadcast(room);
-  roomService.maybeCleanup(room);
+  // Явный выход: игрок ушёл сознательно, отсрочку опустевшей комнате не даём.
+  roomService.maybeCleanup(room, true);
 }
 
 /**

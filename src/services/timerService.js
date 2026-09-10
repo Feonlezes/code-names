@@ -8,7 +8,9 @@
  * Помимо посекундного пофазного таймера (_interval) умеет вести одноразовый
  * обратный отсчёт голосования (_voteTimeout, task 1) — он не связан с фазой и
  * нужен для 2-сек паузы перед применением единогласного решения агентов.
- * Экспорт: startTimer, clearTimer, startCountdown, clearCountdown.
+ * Третий механизм — отсрочка удаления опустевшей комнаты (_expiryTimeout).
+ * Экспорт: startTimer, clearTimer, startCountdown, clearCountdown, startExpiry,
+ * clearExpiry.
  */
 
 /**
@@ -77,4 +79,37 @@ function startCountdown(room, ms, onDone) {
   }, ms);
 }
 
-module.exports = { startTimer, clearTimer, startCountdown, clearCountdown };
+/**
+ * Снимает отсрочку удаления пустой комнаты, если она была вооружена.
+ *
+ * @param {import('../core/model').Room} room - комната (мутируется)
+ * @returns {void}
+ */
+function clearExpiry(room) {
+  if (room._expiryTimeout) {
+    clearTimeout(room._expiryTimeout);
+    room._expiryTimeout = null;
+  }
+}
+
+/**
+ * Вооружает отсрочку удаления комнаты: через ms миллисекунд вызывает onDone.
+ * Предыдущая отсрочка (если была) снимается. Решение, удалять ли комнату по
+ * истечении, принимает вызывающий в колбэке.
+ *
+ * @param {import('../core/model').Room} room - комната (мутируется)
+ * @param {number} ms - длительность отсрочки, мс
+ * @param {() => void} onDone - вызывается по истечении отсрочки
+ * @returns {void}
+ */
+function startExpiry(room, ms, onDone) {
+  clearExpiry(room);
+  room._expiryTimeout = setTimeout(() => {
+    room._expiryTimeout = null;
+    onDone();
+  }, ms);
+}
+
+module.exports = {
+  startTimer, clearTimer, startCountdown, clearCountdown, startExpiry, clearExpiry
+};
