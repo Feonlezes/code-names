@@ -12,7 +12,7 @@
 ## `src/config.js`
 
 Единая конфигурация: `PORT`, `HOST`, `PUBLIC_DIR`, `MIME`, `ASSET_MAX_AGE`,
-`PING_INTERVAL`, `DEFAULT_SETTINGS`. Изменяемые параметры держим здесь, а не по
+`ROOM_GRACE_MS`, `PING_INTERVAL`, `DEFAULT_SETTINGS`. Изменяемые параметры держим здесь, а не по
 месту использования. `ASSET_MAX_AGE` — срок кэширования файлов из
 `public/assets/` (год); `MIME` включает `.mp3` (`audio/mpeg`), иначе звук
 уходил бы клиенту как `application/octet-stream`.
