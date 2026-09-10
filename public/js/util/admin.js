@@ -10,5 +10,9 @@
  * Экспорт: IS_ADMIN.
  */
 
-/** @type {boolean} страница открыта по пути /admin */
-export const IS_ADMIN = location.pathname.startsWith('/admin');
+/**
+ * @type {boolean} страница открыта по пути /admin
+ * Проверяется наличие сегмента admin, а не начало пути: под префиксом обратного
+ * прокси адрес выглядит как /code-names/admin, и проверка по началу не сработает.
+ */
+export const IS_ADMIN = location.pathname.split('/').includes('admin');

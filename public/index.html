@@ -295,7 +295,9 @@
   <!-- Стоп-пауза (F9, task 3): полноэкранное затемнение с картинкой по центру.
        Общая для всех в комнате (state.stopped). Видимость задаёт main.js. -->
   <div id="stop-overlay" class="stop-overlay hidden" aria-hidden="true">
-    <img src="/assets/images/stop-game-dota-2.png" alt="Игра остановлена">
+    <!-- Путь относительный: под префиксом обратного прокси (/code-names/)
+         абсолютный /assets/... ушёл бы мимо приложения. -->
+    <img src="assets/images/stop-game-dota-2.png" alt="Игра остановлена">
   </div>
 
   <!-- Контейнер уведомлений (тосты) -->

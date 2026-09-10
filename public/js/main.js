@@ -9,6 +9,7 @@
 
 import { $, $$ } from './util/dom.js';
 import { IS_ADMIN } from './util/admin.js';
+import { BASE } from './util/basePath.js';
 import { DEFAULTS, WORDS } from './config.js';
 import { LS } from './storage/localStore.js';
 import { IN, OUT } from './net/messages.js';
@@ -211,7 +212,9 @@ function bindEvents() {
   // room header
   $('#room-edit-nick').addEventListener('click', openNickModal);
   $('#leave-btn').addEventListener('click', () => $('#leave-modal').classList.remove('hidden'));
-  $('#copy-link').addEventListener('click', () => copyFeedback('#copy-link', '🔗', location.origin + '/?room=' + getState().code));
+  // Ссылка-приглашение собирается от базы приложения, чтобы под префиксом
+  // прокси она вела в игру, а не в корень домена.
+  $('#copy-link').addEventListener('click', () => copyFeedback('#copy-link', '🔗', location.origin + BASE + '?room=' + getState().code));
   $('#settings-gear').addEventListener('click', () => $('#settings-modal').classList.remove('hidden'));
   $('#settings-close').addEventListener('click', () => $('#settings-modal').classList.add('hidden'));
 

@@ -6,6 +6,8 @@
  * Экспорт: ensureAudio, soundNotify, handleSound.
  */
 
+import { asset } from '../util/basePath.js';
+
 let audioCtx = null;
 // Последнее значение таймера, на которое уже играли звук — чтобы не дублировать
 // звук в пределах одной секунды (см. handleSound).
@@ -67,7 +69,7 @@ export function soundClick() { beep(420, 0.05, 0.30, 'square'); }
 // Звук клика по карте — из аудиофайла (см. public/assets/sounds/). Один
 // предзагруженный элемент; на каждый клик клонируем его, чтобы быстрые клики
 // проигрывались внахлёст, а не обрывали друг друга.
-const CARD_CLICK_SRC = '/assets/sounds/card-click-sound.mp3';
+const CARD_CLICK_SRC = asset('assets/sounds/card-click-sound.mp3');
 let cardClickAudio = null;
 try {
   cardClickAudio = new Audio(CARD_CLICK_SRC);

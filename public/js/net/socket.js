@@ -10,6 +10,7 @@
 
 import { LS } from '../storage/localStore.js';
 import { IN } from './messages.js';
+import { wsUrl } from '../util/basePath.js';
 
 let ws = null;
 let reconnectTimer = null;
@@ -29,8 +30,9 @@ export function setMessageHandler(fn) { messageHandler = fn; }
  * @returns {void}
  */
 export function connect(onOpen) {
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  ws = new WebSocket(`${proto}://${location.host}`);
+  // Адрес берётся из базы приложения: под обратным прокси Upgrade должен уйти
+  // на префикс (/code-names/), иначе соединение уедет в корень чужого сайта.
+  ws = new WebSocket(wsUrl());
   ws.onopen = () => { if (onOpen) onOpen(); };
   ws.onmessage = (e) => {
     let msg; try { msg = JSON.parse(e.data); } catch (_) { return; }
