@@ -38,7 +38,7 @@ function createHttpServer() {
     let urlPath = decodeURIComponent(req.url.split('?')[0]);
     // Админ-панель доступна по префиксу /admin (docs/protocol.md): отдаём ту же
     // статику, что и из корня, срезая префикс. Так относительные пути ассетов
-    // (styles.css, js/main.js, words.js) и абсолютные (/assets/...) продолжают
+    // (styles.css, js/main.js) и абсолютные (/assets/...) продолжают
     // резолвиться, а сама страница (/admin или /admin/) — это тот же index.html.
     if (urlPath === '/admin' || urlPath === '/admin/') urlPath = '/index.html';
     else if (urlPath.startsWith('/admin/')) urlPath = urlPath.slice('/admin'.length);

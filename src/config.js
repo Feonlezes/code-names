@@ -34,6 +34,18 @@ const ASSET_MAX_AGE = 31536000;
 // игрок в комнате иначе терял бы её за время обновления вкладки.
 const ROOM_GRACE_MS = Number(process.env.ROOM_GRACE_MS) || 60000;
 
+// Тематические группы слов на поле: сколько связок «еда 2» получает каждая
+// команда и сколько слов-ловушек из тех же тем уходит в нейтральные карты.
+const WORD_GROUPS = {
+  minGroups: 1,         // сколько тематических групп достаётся команде
+  maxGroups: 3,
+  minGroupSize: 2,      // сколько слов одной темы в группе
+  maxGroupSize: 3,
+  maxGroupedPerTeam: 6, // потолок сгруппированных слов на команду (из 8-11 карт)
+  minTraps: 0,          // слова из занятых тем среди нейтральных карт
+  maxTraps: 2
+};
+
 // Настройки игры по умолчанию (значения взяты из правил Codenames).
 const DEFAULT_SETTINGS = {
   boardSize: 5,        // размер поля: 5 или 6
@@ -53,5 +65,6 @@ module.exports = {
   MIME,
   ASSET_MAX_AGE,
   ROOM_GRACE_MS,
+  WORD_GROUPS,
   DEFAULT_SETTINGS
 };

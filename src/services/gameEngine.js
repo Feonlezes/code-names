@@ -16,8 +16,7 @@
  * adminAddClue.
  */
 
-const { shuffle } = require('../core/rng');
-const { layoutFor } = require('../core/board');
+const { buildBoard } = require('../core/board');
 const { addLog, teamName, teamCounts } = require('../core/model');
 const timer = require('./timerService');
 
@@ -69,27 +68,17 @@ function onTimeout(room, ctx) {
 }
 
 /**
- * Начинает партию: выбирает слова, раскладывает цвета, назначает стартовую
- * команду и запускает фазу подсказки. Мутирует комнату и запускает таймер.
+ * Начинает партию: собирает поле (слова с их цветами, включая тематические
+ * группы у команд), назначает стартовую команду и запускает фазу подсказки.
+ * Мутирует комнату и запускает таймер.
  *
  * @param {import('../core/model').Room} room
- * @param {Array<string>} words - словарь от клиента (может быть неполным)
  * @param {EngineCtx} ctx
  * @returns {void}
  */
-function startGame(room, words, ctx) {
-  const size = room.settings.boardSize;
-  const total = size * size;
-  // Берём уникальные слова; если их меньше, чем клеток, — подставляем заглушки.
-  let pool = Array.isArray(words) ? [...new Set(words)] : [];
-  let chosen = pool.length >= total ? shuffle(pool.slice()).slice(0, total) : null;
-  if (!chosen) {
-    chosen = [];
-    for (let i = 0; i < total; i++) chosen.push('СЛОВО ' + (i + 1));
-  }
+function startGame(room, ctx) {
   const startingTeam = Math.random() < 0.5 ? 'red' : 'blue';
-  const colors = layoutFor(size, startingTeam);
-  room.board = chosen.map((w, i) => ({ word: w, color: colors[i], revealed: false }));
+  room.board = buildBoard(room.settings.boardSize, startingTeam);
   room.startingTeam = startingTeam;
   room.currentTeam = startingTeam;
   room.phase = 'clue';

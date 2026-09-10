@@ -10,7 +10,7 @@
 import { $, $$ } from './util/dom.js';
 import { IS_ADMIN } from './util/admin.js';
 import { BASE } from './util/basePath.js';
-import { DEFAULTS, WORDS } from './config.js';
+import { DEFAULTS } from './config.js';
 import { LS } from './storage/localStore.js';
 import { IN, OUT } from './net/messages.js';
 import { connect, send, setMessageHandler, isOpen, closeSocket } from './net/socket.js';
@@ -274,8 +274,8 @@ function bindEvents() {
   $('#settings-close').addEventListener('click', () => $('#settings-modal').classList.add('hidden'));
 
   // controls
-  $('#start-btn').addEventListener('click', () => send({ type: IN.START_GAME, words: WORDS }));
-  $('#newgame-btn').addEventListener('click', () => send({ type: IN.NEW_GAME, words: WORDS }));
+  $('#start-btn').addEventListener('click', () => send({ type: IN.START_GAME }));
+  $('#newgame-btn').addEventListener('click', () => send({ type: IN.NEW_GAME }));
   $('#lobby-btn').addEventListener('click', () => send({ type: IN.BACK_TO_LOBBY }));
   // Одна кнопка паузы-переключателя: шлёт RESUME, если уже на паузе, иначе PAUSE.
   $('#pause-btn').addEventListener('click', () => send({ type: getState().paused ? IN.RESUME : IN.PAUSE }));
@@ -286,11 +286,11 @@ function bindEvents() {
   // (пере)запускаем партию с ними — работает и в лобби, и во время игры (сервер
   // применит настройки перед startGame). Закрываем модалку, чтобы показать поле.
   $('#save-settings').addEventListener('click', () => {
-    send({ type: IN.NEW_GAME, words: WORDS, settings: readSettingsForm() });
+    send({ type: IN.NEW_GAME, settings: readSettingsForm() });
     $('#settings-modal').classList.add('hidden');
   });
   // Перезапуск партии из модалки настроек — та же логика, что «Новая игра».
-  $('#restart-game').addEventListener('click', () => send({ type: IN.NEW_GAME, words: WORDS }));
+  $('#restart-game').addEventListener('click', () => send({ type: IN.NEW_GAME }));
   // Завершить партию и вернуться в лобби (та же логика, что «В лобби»). Закрываем
   // модалку, чтобы открыть стартовый экран с кнопками начала игры (task 2).
   $('#finish-game').addEventListener('click', () => {

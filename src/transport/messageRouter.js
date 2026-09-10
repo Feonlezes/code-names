@@ -147,7 +147,7 @@ function handleMessage(ws, data) {
       // новым настройкам — даже если игра шла (startGame собирает поле заново).
       if (isHost) {
         if (msg.settings) roomService.updateSettings(room, msg.settings);
-        gameEngine.startGame(room, msg.words, ctx);
+        gameEngine.startGame(room, ctx);
       }
       break;
     case IN.BACK_TO_LOBBY:
