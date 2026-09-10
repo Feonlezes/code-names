@@ -21,8 +21,13 @@ const MIME = {
   '.json': 'application/json; charset=utf-8',
   '.png': 'image/png',
   '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon'
+  '.ico': 'image/x-icon',
+  '.mp3': 'audio/mpeg'
 };
+
+// Срок кэширования файлов из public/assets/ (звуки, картинки, иконка): год.
+// Они неизменяемые по содержимому — меняется имя файла, а не содержимое.
+const ASSET_MAX_AGE = 31536000;
 
 // Настройки игры по умолчанию (значения взяты из правил Codenames).
 const DEFAULT_SETTINGS = {
@@ -41,5 +46,6 @@ module.exports = {
   PING_INTERVAL: 30000, // период проверки «живости» WebSocket-соединений, мс
   PUBLIC_DIR,
   MIME,
+  ASSET_MAX_AGE,
   DEFAULT_SETTINGS
 };

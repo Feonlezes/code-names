@@ -11,6 +11,7 @@
 import { LS } from '../storage/localStore.js';
 import { IN } from './messages.js';
 import { wsUrl } from '../util/basePath.js';
+import { IS_ADMIN } from '../util/admin.js';
 
 let ws = null;
 let reconnectTimer = null;
@@ -42,7 +43,9 @@ export function connect(onOpen) {
     if (LS.room) {
       clearTimeout(reconnectTimer);
       reconnectTimer = setTimeout(() => {
-        connect(() => send({ type: IN.JOIN_ROOM, code: LS.room, playerId: LS.id, nickname: LS.nick }));
+        // Флаг admin передаём и при переподключении: права даются на каждом
+        // входе, а обрыв связи не должен молча их отнимать.
+        connect(() => send({ type: IN.JOIN_ROOM, code: LS.room, playerId: LS.id, nickname: LS.nick, admin: IS_ADMIN }));
       }, 1500);
     }
   };

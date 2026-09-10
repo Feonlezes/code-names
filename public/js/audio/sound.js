@@ -23,6 +23,8 @@ export function ensureAudio() {
     try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (_) {}
   }
   if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  // Контекст появился — можно декодировать звук клика (если байты уже пришли).
+  decodeCardClick();
 }
 
 /**
@@ -66,32 +68,80 @@ export function soundClue() {
  */
 export function soundClick() { beep(420, 0.05, 0.30, 'square'); }
 
-// Звук клика по карте — из аудиофайла (см. public/assets/sounds/). Один
-// предзагруженный элемент; на каждый клик клонируем его, чтобы быстрые клики
-// проигрывались внахлёст, а не обрывали друг друга.
+// Звук клика по карте — из аудиофайла (см. public/assets/sounds/). Байты
+// тянутся ОДИН раз за страницу и декодируются в AudioBuffer, дальше каждый клик
+// играет из памяти: клонирование элемента Audio (как было раньше) создаёт новый
+// медиа-ресурс и грузит файл заново — то есть сетевой запрос на каждый клик.
 const CARD_CLICK_SRC = asset('assets/sounds/card-click-sound.mp3');
-let cardClickAudio = null;
-try {
-  cardClickAudio = new Audio(CARD_CLICK_SRC);
-  cardClickAudio.preload = 'auto';
-  cardClickAudio.volume = 0.7;
-} catch (_) {}
+const CARD_CLICK_VOLUME = 0.7;
+
+let cardClickBytes = null;   // сырые байты файла (одна загрузка)
+let cardClickBuffer = null;  // декодированный звук, из него идёт воспроизведение
+let cardClickAudio = null;   // резервный элемент Audio, создаётся по необходимости
+
+// Байты грузим сразу: ArrayBuffer не требует AudioContext, поэтому загрузка не
+// ждёт пользовательского жеста. Декодирование — уже при появлении контекста.
+fetch(CARD_CLICK_SRC)
+  .then(r => (r.ok ? r.arrayBuffer() : null))
+  .then(bytes => { cardClickBytes = bytes; decodeCardClick(); })
+  .catch(() => {});
 
 /**
- * Проигрывает звук клика по карте из файла; при сбое (файл не загрузился или
- * воспроизведение отклонено) откатывается на синтезированный щелчок soundClick.
+ * Декодирует загруженные байты звука клика в AudioBuffer. Зовётся и после
+ * загрузки, и из ensureAudio, потому что готовы эти две вещи в произвольном
+ * порядке: контекст появляется только после жеста пользователя.
+ * @returns {void}
+ */
+function decodeCardClick() {
+  if (cardClickBuffer || !cardClickBytes || !audioCtx) return;
+  try {
+    // decodeAudioData забирает переданный ArrayBuffer себе, поэтому отдаём
+    // копию — исходные байты нужны для повторной попытки.
+    audioCtx.decodeAudioData(cardClickBytes.slice(0), buf => { cardClickBuffer = buf; }, () => {});
+  } catch (_) {}
+}
+
+/**
+ * Резервное воспроизведение через элемент Audio — на случай, если буфер ещё не
+ * готов или WebAudio недоступен. Элемент создаётся один раз, на клик идёт клон,
+ * чтобы частые клики не обрывали друг друга.
+ * @returns {boolean} удалось ли запустить воспроизведение
+ */
+function playCardClickElement() {
+  try {
+    if (!cardClickAudio) {
+      cardClickAudio = new Audio(CARD_CLICK_SRC);
+      cardClickAudio.preload = 'auto';
+      cardClickAudio.volume = CARD_CLICK_VOLUME;
+    }
+    const a = cardClickAudio.cloneNode();
+    a.volume = CARD_CLICK_VOLUME;
+    const p = a.play();
+    if (p && p.catch) p.catch(() => soundClick());
+    return true;
+  } catch (_) { return false; }
+}
+
+/**
+ * Проигрывает звук клика по карте. Основной путь — из декодированного буфера,
+ * без обращения к сети; у каждого клика свой source-node, поэтому быстрые клики
+ * накладываются. Фолбэки по порядку: элемент Audio, затем синтезированный
+ * щелчок soundClick.
  * @returns {void}
  */
 export function soundCardClick() {
-  if (cardClickAudio) {
+  if (audioCtx && cardClickBuffer) {
     try {
-      const a = cardClickAudio.cloneNode();
-      a.volume = cardClickAudio.volume;
-      const p = a.play();
-      if (p && p.catch) p.catch(() => soundClick());
+      const src = audioCtx.createBufferSource();
+      const gain = audioCtx.createGain();
+      src.buffer = cardClickBuffer;
+      gain.gain.value = CARD_CLICK_VOLUME;
+      src.connect(gain); gain.connect(audioCtx.destination);
+      src.start();
       return;
     } catch (_) { /* падаем в фолбэк ниже */ }
   }
+  if (playCardClickElement()) return;
   soundClick();
 }
 /**

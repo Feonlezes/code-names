@@ -10,7 +10,21 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { PUBLIC_DIR, MIME } = require('../config');
+const { PUBLIC_DIR, MIME, ASSET_MAX_AGE } = require('../config');
+
+/**
+ * Определяет политику кэширования для файла. Ассеты (звуки, картинки, иконка)
+ * кэшируются надолго, а разметка и код — только со сверкой с сервером: иначе
+ * после обновления приложения браузер продолжил бы отдавать старый клиент.
+ *
+ * @param {string} urlPath - путь запроса внутри public/ (с ведущим слэшем)
+ * @returns {string} значение заголовка Cache-Control
+ */
+function cacheControlFor(urlPath) {
+  return urlPath.startsWith('/assets/')
+    ? `public, max-age=${ASSET_MAX_AGE}, immutable`
+    : 'no-cache';
+}
 
 /**
  * Создаёт HTTP-сервер, раздающий статику из public/. `/` отображается на
@@ -35,15 +49,36 @@ function createHttpServer() {
       res.end('Forbidden');
       return;
     }
-    fs.readFile(filePath, (err, data) => {
-      if (err) {
+    // Сначала stat: из размера и времени правки собирается ETag, по которому
+    // браузер получает 304 вместо повторной передачи файла.
+    fs.stat(filePath, (err, st) => {
+      if (err || !st.isFile()) {
         res.writeHead(404);
         res.end('Not found');
         return;
       }
       const ext = path.extname(filePath).toLowerCase();
-      res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
-      res.end(data);
+      const etag = `"${st.size.toString(16)}-${st.mtimeMs.toString(16)}"`;
+      const headers = {
+        'Content-Type': MIME[ext] || 'application/octet-stream',
+        'Cache-Control': cacheControlFor(urlPath),
+        'ETag': etag,
+        'Last-Modified': st.mtime.toUTCString()
+      };
+      if (req.headers['if-none-match'] === etag) {
+        res.writeHead(304, headers);
+        res.end();
+        return;
+      }
+      fs.readFile(filePath, (readErr, data) => {
+        if (readErr) {
+          res.writeHead(404);
+          res.end('Not found');
+          return;
+        }
+        res.writeHead(200, headers);
+        res.end(data);
+      });
     });
   });
 }

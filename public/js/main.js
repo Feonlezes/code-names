@@ -419,7 +419,10 @@ function init() {
     $('#login-nick').value = LS.nick;
     $('#home-nick').textContent = LS.nick;
     if (pendingRoom) { show('screen-home'); joinRoom(pendingRoom, true); cleanUrl(); pendingRoom = ''; }
-    else if (LS.room) { show('screen-room'); connect(() => send({ type: IN.JOIN_ROOM, code: LS.room, playerId, nickname: LS.nick })); }
+    // Флаг admin нужен и при тихом восстановлении сессии: сервер выдаёт права
+    // по нему на каждом входе, иначе после перезагрузки страницы админ-режим
+    // остался бы только в интерфейсе, а действия молча не срабатывали.
+    else if (LS.room) { show('screen-room'); connect(() => send({ type: IN.JOIN_ROOM, code: LS.room, playerId, nickname: LS.nick, admin: IS_ADMIN })); }
     else show('screen-home');
   } else {
     show('screen-login');
