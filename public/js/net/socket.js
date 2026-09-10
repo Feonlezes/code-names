@@ -65,7 +65,7 @@ export function send(obj) {
 export function isOpen() { return !!ws && ws.readyState === WebSocket.OPEN; }
 
 /**
- * Закрывает соединение без авто-переподключения (для logout).
+ * Закрывает соединение без авто-переподключения (для выхода из лобби).
  * @returns {void}
  */
 export function closeSocket() {

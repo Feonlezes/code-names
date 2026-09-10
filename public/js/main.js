@@ -264,7 +264,9 @@ function bindEvents() {
 
   // room header
   $('#room-edit-nick').addEventListener('click', openNickModal);
-  $('#leave-btn').addEventListener('click', () => $('#leave-modal').classList.remove('hidden'));
+  // Выход из лобби — сразу, без подтверждения: действие дешёвое, комната
+  // остаётся доступной по коду, а ник сохраняется.
+  $('#leave-btn').addEventListener('click', leaveRoom);
   // Ссылка-приглашение собирается от базы приложения, чтобы под префиксом
   // прокси она вела в игру, а не в корень домена.
   $('#copy-link').addEventListener('click', () => copyFeedback('#copy-link', '🔗', location.origin + BASE + '?room=' + getState().code));
@@ -316,13 +318,9 @@ function bindEvents() {
   $('#nick-save').addEventListener('click', saveNick);
   $('#nick-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') saveNick(); });
 
-  // leave/logout modal
-  $('#leave-cancel').addEventListener('click', () => $('#leave-modal').classList.add('hidden'));
-  $('#leave-confirm').addEventListener('click', logout);
-
   // Закрытие модалок кликом вне их области (по затемнённому фону). Срабатывает
   // только если клик пришёлся на сам оверлей, а не на его содержимое (modal-box).
-  ['#settings-modal', '#nick-modal', '#leave-modal', '#admin-modal'].forEach(sel => {
+  ['#settings-modal', '#nick-modal', '#admin-modal'].forEach(sel => {
     const overlay = $(sel);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.add('hidden'); });
   });
@@ -382,17 +380,30 @@ function saveNick() {
   if (isOpen() && LS.room) send({ type: IN.CHANGE_NICKNAME, nickname: nick });
 }
 
-/** Выход из аккаунта: покидает комнату, сбрасывает данные и возвращает на вход. @returns {void} */
-function logout() {
+/**
+ * Выход из лобби: покидает комнату, закрывает соединение и возвращает игрока к
+ * созданию лобби. Никнейм сохраняется — это выход из комнаты, а не из аккаунта,
+ * поэтому экран ввода никнейма показывается только когда ника нет. Код комнаты
+ * убирается и из адреса: иначе перезагрузка после выхода снова тянула бы в
+ * покинутую комнату.
+ *
+ * @returns {void}
+ */
+function leaveRoom() {
   send({ type: IN.LEAVE });
   LS.room = '';
-  LS.nick = '';
   closeSocket();
   setState(null); resetSig();
-  $('#leave-modal').classList.add('hidden');
-  $('#login-nick').value = '';
-  show('screen-login');
-  $('#login-nick').focus();
+  cleanUrl();
+  $('#home-error').textContent = '';
+  if (LS.nick) {
+    $('#home-nick').textContent = LS.nick;
+    show('screen-home');
+  } else {
+    $('#login-nick').value = '';
+    show('screen-login');
+    $('#login-nick').focus();
+  }
 }
 
 // Страховка от «залипания» на экране загрузки: если вход так и не состоялся
