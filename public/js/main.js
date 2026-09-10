@@ -417,6 +417,31 @@ function clearBootFallback() {
   bootTimer = null;
 }
 
+/**
+ * Запрашивает у сервера версию запущенного приложения и показывает её в подвале
+ * модалки настроек, а также одной строкой в консоли. Ошибку и пустой ответ
+ * игнорируем — строка просто останется пустой.
+ *
+ * @returns {void}
+ */
+function loadVersion() {
+  fetch(BASE + 'version')
+    .then(r => (r.ok ? r.json() : null))
+    .then(v => {
+      if (!v) return;
+      const parts = [];
+      if (v.version) parts.push('v' + v.version);
+      if (v.revision) parts.push(v.revision);
+      // Ветку показываем только когда работаем не с main — иначе это шум.
+      if (v.branch && v.branch !== 'main') parts.push(v.branch);
+      const text = parts.join(' · ');
+      if (!text) return;
+      $('#app-version').textContent = text;
+      console.info('🕵️ Codenames ' + text);
+    })
+    .catch(() => {});
+}
+
 /** Убирает query-параметры из URL (после обработки приглашения). @returns {void} */
 function cleanUrl() {
   try { history.replaceState({}, '', location.pathname); } catch (_) {}
@@ -437,6 +462,7 @@ function init() {
     $('#admin-btn').classList.remove('hidden');
     $('#update-app').classList.remove('hidden');
   }
+  loadVersion();
   pendingRoom = (new URLSearchParams(location.search).get('room') || '').toUpperCase();
 
   if (LS.nick) {

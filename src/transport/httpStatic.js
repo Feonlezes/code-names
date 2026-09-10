@@ -11,6 +11,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { PUBLIC_DIR, MIME, ASSET_MAX_AGE } = require('../config');
+const { getVersion } = require('../infra/version');
 
 /**
  * Определяет политику кэширования для файла. Ассеты (звуки, картинки, иконка)
@@ -42,6 +43,16 @@ function createHttpServer() {
     if (urlPath === '/admin' || urlPath === '/admin/') urlPath = '/index.html';
     else if (urlPath.startsWith('/admin/')) urlPath = urlPath.slice('/admin'.length);
     if (urlPath === '/') urlPath = '/index.html';
+    // Версия запущенного приложения — единственный нестатический маршрут.
+    // Без кэша: после обновления и перезапуска ответ обязан быть новым.
+    if (urlPath === '/version') {
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store'
+      });
+      res.end(JSON.stringify(getVersion()));
+      return;
+    }
     const filePath = path.join(PUBLIC_DIR, path.normalize(urlPath));
     // защита от выхода за пределы папки public
     if (!filePath.startsWith(PUBLIC_DIR)) {
