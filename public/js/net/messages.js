@@ -33,12 +33,14 @@ export const IN = {
   ADMIN_ADD_PLAYER: 'adminAddPlayer', // добавить бота в команду/наблюдатели {team}
   ADMIN_ADD_CLUE: 'adminAddClue',     // добавить подсказку в историю команды {team}
   ADMIN_WIN: 'adminWin',              // имитировать победу команды {team}
-  ADMIN_XRAY: 'adminXray'             // переключить X-ray (видеть все цвета лично)
+  ADMIN_XRAY: 'adminXray',            // переключить X-ray (видеть все цвета лично)
+  CHECK_UPDATE: 'checkUpdate'         // проверить и подтянуть обновление из git
 };
 
 // Приходящие клиенту: сервер → клиент.
 export const OUT = {
   STATE: 'state',
   JOINED: 'joined',
-  ERROR: 'error'
+  ERROR: 'error',
+  UPDATE_STATUS: 'updateStatus'
 };

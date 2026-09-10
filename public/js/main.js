@@ -26,6 +26,11 @@ import { renderSettings, readSettingsForm } from './ui/settings.view.js';
 import { renderLog } from './ui/log.view.js';
 import { renderWin, copyFeedback, openNickModal } from './ui/modals.js';
 
+// Пауза перед перезагрузкой страницы после обновления: сервер уходит в
+// перезапуск (RestartSec=3 в unit плюс старт процесса), и слишком ранняя
+// перезагрузка упёрлась бы в 502 от прокси.
+const UPDATE_RELOAD_DELAY = 6000;
+
 const playerId = LS.id;
 let pendingRoom = '';       // комната из ссылки-приглашения
 let manualJoin = false;     // была ли последняя попытка входа явной (см. joinRoom)
@@ -58,7 +63,53 @@ function handleMessage(msg) {
     show('screen-room');
     return;
   }
+  if (msg.type === OUT.UPDATE_STATUS) { handleUpdateStatus(msg); return; }
   if (msg.type === OUT.STATE) { setState(msg); render(); }
+}
+
+// Липкий тост текущей проверки/обновления: держим ссылку, чтобы закрыть его,
+// когда сервер сообщит результат.
+let updateToast = null;
+
+/** Закрывает липкий тост обновления, если он открыт. @returns {void} */
+function closeUpdateToast() {
+  if (updateToast) { updateToast.close(); updateToast = null; }
+}
+
+/**
+ * Показывает ход обновления приложения по стадиям от сервера
+ * (см. docs/protocol.md): жёлтый липкий тост на время работы и обычный тост с
+ * результатом. После успешного обновления с перезапуском перезагружает
+ * страницу — иначе в браузере остался бы старый клиентский код.
+ *
+ * @param {{stage: string, version?: string, deps?: boolean, restart?: boolean, message?: string}} msg
+ * @returns {void}
+ */
+function handleUpdateStatus(msg) {
+  const btn = $('#update-app');
+  if (msg.stage === 'checking') {
+    btn.disabled = true;
+    closeUpdateToast();
+    updateToast = showToast('🔎 Проверяю обновления…', { variant: 'warning', sticky: true });
+    return;
+  }
+  if (msg.stage === 'updating') {
+    if (updateToast) updateToast.setText('⬆️ Обновляю приложение…');
+    else updateToast = showToast('⬆️ Обновляю приложение…', { variant: 'warning', sticky: true });
+    return;
+  }
+  closeUpdateToast();
+  btn.disabled = false;
+  if (msg.stage === 'uptodate') {
+    showToast(`✅ Версия актуальная (${msg.version || '—'})`);
+  } else if (msg.stage === 'updated') {
+    showToast('🎉 Приложение обновлено' + (msg.restart ? ', сервер перезапускается' : ', нужен перезапуск сервера'));
+    // Перезагрузку даём с задержкой, чтобы тост успели прочитать, и только при
+    // перезапуске сервера — иначе страница вернётся к тому же старому коду.
+    if (msg.restart) setTimeout(() => location.reload(), UPDATE_RELOAD_DELAY);
+  } else if (msg.stage === 'error') {
+    showToast(`⚠️ Обновление не удалось: ${msg.message || 'неизвестная ошибка'}`);
+  }
 }
 
 /**
@@ -242,6 +293,13 @@ function bindEvents() {
     send({ type: IN.BACK_TO_LOBBY });
     $('#settings-modal').classList.add('hidden');
   });
+  // Обновление приложения из git (только /admin, сервер тоже проверяет права).
+  // Кнопку сразу гасим: стадии придут отдельными сообщениями, а повторный клик
+  // запустил бы второе обновление.
+  $('#update-app').addEventListener('click', () => {
+    $('#update-app').disabled = true;
+    send({ type: IN.CHECK_UPDATE });
+  });
 
   // team/role buttons (действуют в лобби и на паузе — сервер тоже это проверяет)
   $$('.btn-team').forEach(btn => {
@@ -349,8 +407,12 @@ function cleanUrl() {
 function init() {
   setMessageHandler(handleMessage);
   bindEvents();
-  // В режиме /admin показываем кнопку админ-меню (она в шапке экрана комнаты).
-  if (IS_ADMIN) $('#admin-btn').classList.remove('hidden');
+  // В режиме /admin показываем кнопку админ-меню (она в шапке экрана комнаты)
+  // и кнопку обновления приложения в модалке настроек.
+  if (IS_ADMIN) {
+    $('#admin-btn').classList.remove('hidden');
+    $('#update-app').classList.remove('hidden');
+  }
   pendingRoom = (new URLSearchParams(location.search).get('room') || '').toUpperCase();
 
   if (LS.nick) {

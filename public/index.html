@@ -214,6 +214,10 @@
                кнопками «Начать игру»/«Перемешать»). Только хост и только когда
                партия идёт/завершена (task 2). -->
           <button id="finish-game" class="btn btn-danger btn-block">🏁 Завершить игру</button>
+          <!-- Обновление приложения из git. Только режим /admin (класс hidden
+               снимает JS), потому что успешное обновление перезапускает сервер
+               и обрывает все идущие партии. -->
+          <button id="update-app" class="btn btn-secondary btn-block hidden">⬆️ Обновить приложение</button>
         </div>
         <div class="panel log-panel">
           <h4>📜 События</h4>

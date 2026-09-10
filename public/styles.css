@@ -625,9 +625,16 @@ select.input {
 .toast-body { padding: 14px 16px; font-size: 14px; font-weight: 600; }
 .toast-loader { height: 4px; background: var(--bg-3); }
 .toast-loader-bar { height: 100%; width: 100%; background: var(--green); animation: toastLoad 4s linear forwards; }
+/* Жёлтый вид тоста: длящееся действие (например, идёт проверка обновлений). */
+.toast.toast-warning { border-left-color: var(--warning); }
+.toast.toast-warning .toast-loader-bar { background: var(--warning); }
+/* Липкий тост живёт, пока его не закроют, поэтому полоса не «дотикивает» до
+   конца, а бегает туда-сюда — иначе пустая полоса читалась бы как «готово». */
+.toast.toast-sticky .toast-loader-bar { width: 35%; animation: toastIndet 1.2s ease-in-out infinite; }
 @keyframes toastIn  { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 @keyframes toastOut { to { transform: translateX(120%); opacity: 0; } }
 @keyframes toastLoad { from { width: 100%; } to { width: 0%; } }
+@keyframes toastIndet { from { transform: translateX(-100%); } to { transform: translateX(285%); } }
 
 /* ---------- Админ-режим (/admin): кнопка, меню модерации, панель ---------- */
 /* Кнопка «Админ меню» в шапке: фон как у карточек хедера (var(--bg-3)), жёлтая

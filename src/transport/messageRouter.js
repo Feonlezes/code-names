@@ -13,6 +13,7 @@ const roomService = require('../services/roomService');
 const gameEngine = require('../services/gameEngine');
 const { stateFor } = require('../services/serializer');
 const { addLog } = require('../core/model');
+const updater = require('../infra/updater');
 
 /**
  * Отправляет объект одному сокету, если он открыт.
@@ -222,6 +223,15 @@ function handleMessage(ws, data) {
     case IN.ADMIN_XRAY:
       // Переключить личный X-ray: админ начинает/перестаёт видеть все цвета.
       if (isAdmin) player.xray = !player.xray;
+      break;
+    // ---------- Обновление приложения (только /admin) ----------
+    case IN.CHECK_UPDATE:
+      // Стадии обновления уходят только запросившему сокету: это служебное
+      // действие, а не часть игрового состояния комнаты. Успешное обновление
+      // завершает процесс под перезапуск systemd — партии при этом обрываются.
+      if (isAdmin) {
+        updater.runUpdate(info => send(ws, { type: OUT.UPDATE_STATUS, ...info }));
+      }
       break;
     case IN.LEAVE:
       handleLeave(ws, room);
